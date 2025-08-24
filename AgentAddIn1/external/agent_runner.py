@@ -366,9 +366,20 @@ def build_messages_from_state(state: dict, event: str, user_message: str):
         msgs.append({"role":"user","content":"User confirms: proceed with execution of proposed actions."})
     elif event == "execution_result":
         msgs.append({"role":"user","content": f"Execution result from Fusion host: {user_message}"})
+    elif event == "force_actions":
+        # New: internal nudge to turn the last plan into actions *now*
+        msgs.append({
+            "role": "user",
+            "content": (
+                "Convert the most recent plan into actions now. "
+                "Return ONLY JSON with status='ready_to_execute', actions[], requires_confirmation=true, "
+                "and a short assistant_message. Do not ask more questions."
+            )
+        })
     else:
         msgs.append({"role":"user","content": user_message})
     return msgs
+
 
 def parse_payload_from_argv():
     if len(sys.argv) < 3:

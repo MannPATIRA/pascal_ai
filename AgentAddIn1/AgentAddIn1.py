@@ -147,15 +147,54 @@ def _call_agent(event: str, user_message: str) -> dict:
 
 def _handle_agent_event(event: str, user_message: str):
     global _LAST_ACTIONS
+
+    # 1) Ask the agent & display whatever it said
     reply = _call_agent(event, user_message)
     _send_to_html(reply)
 
+    # Cache actions if they arrived
     if isinstance(reply.get("actions"), list) and reply["actions"]:
         _LAST_ACTIONS = reply["actions"]
 
+    # 2) On confirm, ensure we *really* have actions; else force-convert plan → actions
     if event == "confirm_execute":
         actions = reply.get("actions") or _LAST_ACTIONS or []
+
+        if not actions:
+            # Try one forced conversion turn
+            force = _call_agent("force_actions", "")
+            if isinstance(force.get("actions"), list) and force["actions"]:
+                actions = force["actions"]
+                _LAST_ACTIONS = actions
+                # (optional) show what we're about to run
+                _send_to_html({
+                    "status": "ready_to_execute",
+                    "assistant_message": "Received executable actions from the plan. Executing now.",
+                    "questions": [],
+                    "plan": [],
+                    "actions": actions,
+                    "requires_confirmation": True
+                })
+            else:
+                # Still no actions — do not execute. Ask user to clarify.
+                _send_to_html({
+                    "status": "need_clarification",
+                    "assistant_message": "I couldn’t get executable actions from the plan. Please restate the size, plane (XY/YZ/XZ), and position.",
+                    "questions": [
+                        "What exact sizes (with units)?",
+                        "Which plane (XY, YZ, XZ)?",
+                        "Where should it be positioned (center/origin or coordinates)?"
+                    ],
+                    "plan": [],
+                    "actions": [],
+                    "requires_confirmation": False
+                })
+                return
+
+        # 3) We have actions — run them
         ok, details = _execute_actions(actions)
+
+        # 4) Report execution result to agent and show final reply
         result_msg = json.dumps({"ok": ok, "details": details})
         final = _call_agent("execution_result", result_msg)
         _send_to_html(final)
