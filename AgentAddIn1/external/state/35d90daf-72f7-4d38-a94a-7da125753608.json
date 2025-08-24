@@ -1,0 +1,13 @@
+{
+  "session_id": "35d90daf-72f7-4d38-a94a-7da125753608",
+  "history": [
+    {
+      "role": "user",
+      "content": "i want a circle of radius 20mm and centres at the orign"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"need_clarification\", \"assistant_message\": \"I need to clarify the unit and the plane for the circle.\", \"questions\": [\"Should the radius be converted to centimeters (2 cm) for the circle?\", \"On which plane should the circle be created: XY, YZ, or XZ?\"], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    }
+  ]
+}

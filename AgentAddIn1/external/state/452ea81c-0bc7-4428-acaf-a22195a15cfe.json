@@ -1,0 +1,13 @@
+{
+  "session_id": "452ea81c-0bc7-4428-acaf-a22195a15cfe",
+  "history": [
+    {
+      "role": "user",
+      "content": "make a square on XY"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"need_clarification\", \"assistant_message\": \"I need more details to proceed.\", \"questions\": [\"What is the side length of the square?\", \"Where should the square be positioned on the XY plane (e.g., centered at origin or specific coordinates)?\"], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    }
+  ]
+}

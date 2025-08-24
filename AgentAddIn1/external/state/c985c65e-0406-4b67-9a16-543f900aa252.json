@@ -1,0 +1,13 @@
+{
+  "session_id": "c985c65e-0406-4b67-9a16-543f900aa252",
+  "history": [
+    {
+      "role": "user",
+      "content": "create a circle"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"need_clarification\", \"assistant_message\": \"I need more details to create the circle.\", \"questions\": [\"What is the radius of the circle?\", \"Where should the center of the circle be located on the XY plane?\"], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    }
+  ]
+}

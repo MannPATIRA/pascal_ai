@@ -2,8 +2,8 @@
 import adsk.core, adsk.fusion, adsk.cam, traceback, subprocess
 
 # === EDIT THESE TWO PATHS ===
-PYTHON_EXE     = r"D:\Desktop\Pascal_Addins\Pascal_Addin_2\TestAddIn\venv\Scripts\python.exe"
-EXTERNAL_SCRIPT = r"D:\Desktop\Pascal_Addins\Pascal_Addin_2\TestAddIn\external\external_runner.py"
+PYTHON_EXE     = r"D:\Desktop\Pascal_Addins\TestAddIn\venv\Scripts\python.exe"
+EXTERNAL_SCRIPT = r"D:\Desktop\Pascal_Addins\Pascal_Addin_1\TestAddIn\external\external_runner.py"
 # ============================
 
 # UI placement (Solid workspace → Create panel)
