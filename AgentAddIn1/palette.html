@@ -1,156 +1,453 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <title>PASCAL Agent</title>
-  <style>
-    :root { font-family: Segoe UI, Arial, sans-serif; }
-    body { margin: 10px; }
-    #status { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
-    #dot { width:10px; height:10px; border-radius:50%; background:#c00; }
-    #log { border:1px solid #d0d0d0; height:360px; overflow-y:auto; padding:8px; background:#fff; }
-    .bubble { margin:6px 0; padding:8px 10px; border-radius:8px; }
-    .u { background:#e8f0ff; }
-    .a { background:#f7f7f7; }
-    .err { background:#ffe9e9; border:1px solid #f1b3b3; }
-    #row { display:flex; gap:8px; margin-top:8px; }
-    #msg { flex:1; padding:6px 8px; }
-    button { padding:6px 10px; cursor:pointer; }
-    #confirmBar { display:none; margin-top:8px; }
-    small.hint { display:block; opacity:.7; margin-top:6px; }
-    ul, ol, pre { margin:8px 0 0; }
-    pre { white-space:pre-wrap; word-break:break-all; background:#fafafa; border:1px solid #eee; padding:6px; }
-  </style>
+    <meta charset="utf-8" />
+    <title>PASCAL Agent</title>
+    <style>
+        :root {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            --primary-color: #0078d4;
+            --success-color: #107c10;
+            --error-color: #d13438;
+            --border-color: #d0d0d0;
+            --background-color: #f8f9fa;
+            --user-bubble-bg: #e8f0ff;
+            --assistant-bubble-bg: #f7f7f7;
+            --error-bubble-bg: #ffe9e9;
+        }
+        
+        body {
+            margin: 10px;
+            background-color: var(--background-color);
+        }
+        
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding: 8px;
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--error-color);
+            transition: background-color 0.3s ease;
+        }
+        
+        .status-dot.connected {
+            background: var(--success-color);
+        }
+        
+        .status-text {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .title {
+            margin: 0 0 12px 0;
+            color: var(--primary-color);
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .chat-container {
+            border: 1px solid var(--border-color);
+            height: 360px;
+            overflow-y: auto;
+            padding: 12px;
+            background: white;
+            border-radius: 6px;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .message-bubble {
+            margin: 8px 0;
+            padding: 10px 12px;
+            border-radius: 8px;
+            max-width: 85%;
+            word-wrap: break-word;
+        }
+        
+        .message-bubble.user {
+            background: var(--user-bubble-bg);
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .message-bubble.assistant {
+            background: var(--assistant-bubble-bg);
+            margin-right: auto;
+            border-bottom-left-radius: 4px;
+        }
+        
+        .message-bubble.error {
+            background: var(--error-bubble-bg);
+            border: 1px solid #f1b3b3;
+            margin-right: auto;
+        }
+        
+        .input-container {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        
+        .message-input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s ease;
+        }
+        
+        .message-input:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.2);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            outline: none;
+        }
+        
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #106ebe;
+        }
+        
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #0e6b0e;
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .confirm-bar {
+            display: none;
+            margin-top: 12px;
+            padding: 12px;
+            background: #f0f8ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 6px;
+        }
+        
+        .hint {
+            display: block;
+            opacity: 0.7;
+            margin-top: 8px;
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .list-container {
+            margin: 8px 0 0 0;
+        }
+        
+        .list-container ul,
+        .list-container ol {
+            margin: 8px 0 0 0;
+            padding-left: 20px;
+        }
+        
+        .list-container li {
+            margin-bottom: 4px;
+        }
+        
+        .actions-preview {
+            background: #fafafa;
+            border: 1px solid #eee;
+            border-radius: 4px;
+            padding: 8px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .typing-indicator {
+            display: none;
+            padding: 8px 12px;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
 </head>
 <body>
-  <div id="status">
-    <div id="dot" title="Fusion connection"></div>
-    <div id="statusText">Not connected to Fusion API</div>
-  </div>
-  <h3>PASCAL Agent</h3>
-  <div id="log"></div>
-  <div id="row">
-    <input id="msg" type="text" placeholder="Describe what you want to add/change…" />
-    <button id="sendBtn">Send</button>
-  </div>
-  <div id="confirmBar">
-    <button id="confirmBtn">Proceed & Execute</button>
-  </div>
-  <small class="hint">When a plan appears and actions are listed, click “Proceed & Execute”. Typing “yes” only approves the plan.</small>
+    <div class="header">
+        <div class="status-dot" id="statusDot" title="Fusion connection"></div>
+        <div class="status-text" id="statusText">Not connected to Fusion API</div>
+    </div>
+    
+    <h3 class="title">PASCAL Agent</h3>
+    
+    <div class="chat-container" id="chatContainer">
+        <div class="typing-indicator" id="typingIndicator">Agent is thinking...</div>
+    </div>
+    
+    <div class="input-container">
+        <input 
+            type="text" 
+            id="messageInput" 
+            class="message-input"
+            placeholder="Describe what you want to create..." 
+            autocomplete="off"
+        />
+        <button id="sendButton" class="btn btn-primary">Send</button>
+    </div>
+    
+    <div class="confirm-bar" id="confirmBar">
+        <button id="confirmButton" class="btn btn-success">Proceed & Execute</button>
+    </div>
+    
+    <small class="hint">
+        When a plan appears and actions are listed, click "Proceed & Execute". 
+        Typing "yes" only approves the plan.
+    </small>
 
-  <script>
-    const log = document.getElementById('log');
-    const msg = document.getElementById('msg');
-    const sendBtn = document.getElementById('sendBtn');
-    const confirmBar = document.getElementById('confirmBar');
-    const confirmBtn = document.getElementById('confirmBtn');
-    const dot = document.getElementById('dot');
-    const statusText = document.getElementById('statusText');
-
-    function addBubble(text, who='a', cls='') {
-      if (!text) return;
-      const d = document.createElement('div');
-      d.className = `bubble ${who} ${cls}`;
-      d.textContent = text;
-      log.appendChild(d);
-      log.scrollTop = log.scrollHeight;
-    }
-    function addList(items, ordered=false) {
-      if (!items || !items.length) return;
-      const container = document.createElement('div');
-      container.className = 'bubble a';
-      const list = ordered ? document.createElement('ol') : document.createElement('ul');
-      for (const it of items) {
-        const li = document.createElement('li');
-        li.textContent = it;
-        list.appendChild(li);
-      }
-      container.appendChild(list);
-      log.appendChild(container);
-      log.scrollTop = log.scrollHeight;
-    }
-    function addActionsPreview(actions) {
-      if (!actions || !actions.length) return;
-      const wrap = document.createElement('div');
-      wrap.className = 'bubble a';
-      const pre = document.createElement('pre');
-      pre.textContent = JSON.stringify(actions, null, 2);
-      wrap.appendChild(pre);
-      log.appendChild(wrap);
-      log.scrollTop = log.scrollHeight;
-    }
-
-    function fusionConnected() {
-      const ok = (typeof window.adsk !== 'undefined') &&
-                 adsk && typeof adsk.fusionSendData === 'function';
-      dot.style.background = ok ? '#2ecc71' : '#c00';
-      statusText.textContent = ok ? 'Connected to Fusion API' : 'Not connected to Fusion API';
-      return ok;
-    }
-
-    function send() {
-      const t = msg.value.trim();
-      if (!t) return;
-      addBubble(t, 'u');
-      msg.value = '';
-
-      const payload = { event: 'user_message', user_message: t };
-      const data = JSON.stringify(payload);
-      if (!fusionConnected()) {
-        addBubble('Send failed: Fusion API not available in this palette.', 'a', 'err');
-        return;
-      }
-      try {
-        addBubble('↗ sending: ' + data, 'a');
-        adsk.fusionSendData('agent_event', data);
-      } catch (e) {
-        addBubble('Send exception: ' + e.toString(), 'a', 'err');
-      }
-    }
-
-    function confirmExec() {
-      const payload = { event: 'confirm_execute', user_message: 'OK to proceed' };
-      const data = JSON.stringify(payload);
-      if (!fusionConnected()) {
-        addBubble('Confirm failed: Fusion API not available in this palette.', 'a', 'err');
-        return;
-      }
-      try {
-        addBubble('↗ sending confirm: ' + data, 'a');
-        adsk.fusionSendData('agent_event', data);
-      } catch (e) {
-        addBubble('Confirm exception: ' + e.toString(), 'a', 'err');
-      }
-    }
-
-    sendBtn.addEventListener('click', send);
-    msg.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
-    confirmBtn.addEventListener('click', confirmExec);
-
-    // Fusion -> HTML
-    window.fusionJavaScriptHandler = {
-      handle: function(action, data) {
-        try {
-          if (action !== 'agent_reply') return 'IGNORED';
-          const o = JSON.parse(data);
-
-          if (o.assistant_message) addBubble(o.assistant_message, 'a');
-          if (Array.isArray(o.questions) && o.questions.length) addList(o.questions, false);
-          if (Array.isArray(o.plan) && o.plan.length) addList(o.plan, true);
-          if (Array.isArray(o.actions) && o.actions.length) addActionsPreview(o.actions);
-
-          const hasActions = Array.isArray(o.actions) && o.actions.length > 0;
-          confirmBar.style.display = (o.status === 'ready_to_execute' || hasActions) ? 'block' : 'none';
-          return 'OK';
-        } catch (e) {
-          addBubble('HTML handler exception: ' + e.toString(), 'a', 'err');
-          return 'Exception: ' + e.toString();
+    <script>
+        // ============================================================
+        // DOM Elements
+        // ============================================================
+        
+        const chatContainer = document.getElementById('chatContainer');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const confirmBar = document.getElementById('confirmBar');
+        const confirmButton = document.getElementById('confirmButton');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const typingIndicator = document.getElementById('typingIndicator');
+        
+        // ============================================================
+        // Connection Management
+        // ============================================================
+        
+        function checkFusionConnection() {
+            const isConnected = (typeof window.adsk !== 'undefined') &&
+                               adsk && typeof adsk.fusionSendData === 'function';
+            
+            statusDot.classList.toggle('connected', isConnected);
+            statusText.textContent = isConnected ? 
+                'Connected to Fusion API' : 
+                'Not connected to Fusion API';
+            
+            return isConnected;
         }
-      }
-    };
-
-    // Initial connection indicator
-    fusionConnected();
-  </script>
+        
+        // ============================================================
+        // Message Display
+        // ============================================================
+        
+        function addMessage(text, type = 'assistant', className = '') {
+            if (!text) return;
+            
+            const bubble = document.createElement('div');
+            bubble.className = `message-bubble ${type} ${className}`;
+            bubble.textContent = text;
+            
+            chatContainer.appendChild(bubble);
+            scrollToBottom();
+        }
+        
+        function addList(items, ordered = false) {
+            if (!items || !items.length) return;
+            
+            const container = document.createElement('div');
+            container.className = 'message-bubble assistant list-container';
+            
+            const list = ordered ? document.createElement('ol') : document.createElement('ul');
+            
+            for (const item of items) {
+                const li = document.createElement('li');
+                li.textContent = item;
+                list.appendChild(li);
+            }
+            
+            container.appendChild(list);
+            chatContainer.appendChild(container);
+            scrollToBottom();
+        }
+        
+        function addActionsPreview(actions) {
+            if (!actions || !actions.length) return;
+            
+            const container = document.createElement('div');
+            container.className = 'message-bubble assistant';
+            
+            const pre = document.createElement('pre');
+            pre.className = 'actions-preview';
+            pre.textContent = JSON.stringify(actions, null, 2);
+            
+            container.appendChild(pre);
+            chatContainer.appendChild(container);
+            scrollToBottom();
+        }
+        
+        function showTypingIndicator() {
+            typingIndicator.style.display = 'block';
+            scrollToBottom();
+        }
+        
+        function hideTypingIndicator() {
+            typingIndicator.style.display = 'none';
+        }
+        
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+        
+        // ============================================================
+        // Communication
+        // ============================================================
+        
+        function sendMessage() {
+            const text = messageInput.value.trim();
+            if (!text) return;
+            
+            // Add user message to chat
+            addMessage(text, 'user');
+            messageInput.value = '';
+            
+            // Show typing indicator
+            showTypingIndicator();
+            
+            // Prepare payload
+            const payload = { 
+                event: 'user_message', 
+                user_message: text 
+            };
+            
+            // Send to Fusion
+            if (!checkFusionConnection()) {
+                addMessage('Send failed: Fusion API not available in this palette.', 'assistant', 'error');
+                hideTypingIndicator();
+                return;
+            }
+            
+            try {
+                addMessage('↗ sending: ' + JSON.stringify(payload), 'assistant');
+                adsk.fusionSendData('agent_event', JSON.stringify(payload));
+            } catch (e) {
+                addMessage('Send exception: ' + e.toString(), 'assistant', 'error');
+                hideTypingIndicator();
+            }
+        }
+        
+        function confirmExecution() {
+            const payload = { 
+                event: 'confirm_execute', 
+                user_message: 'OK to proceed' 
+            };
+            
+            if (!checkFusionConnection()) {
+                addMessage('Confirm failed: Fusion API not available in this palette.', 'assistant', 'error');
+                return;
+            }
+            
+            try {
+                addMessage('↗ sending confirm: ' + JSON.stringify(payload), 'assistant');
+                adsk.fusionSendData('agent_event', JSON.stringify(payload));
+            } catch (e) {
+                addMessage('Confirm exception: ' + e.toString(), 'assistant', 'error');
+            }
+        }
+        
+        // ============================================================
+        // Event Handlers
+        // ============================================================
+        
+        sendButton.addEventListener('click', sendMessage);
+        
+        messageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+        
+        confirmButton.addEventListener('click', confirmExecution);
+        
+        // ============================================================
+        // Fusion Communication Handler
+        // ============================================================
+        
+        window.fusionJavaScriptHandler = {
+            handle: function(action, data) {
+                try {
+                    if (action !== 'agent_reply') return 'IGNORED';
+                    
+                    // Hide typing indicator
+                    hideTypingIndicator();
+                    
+                    const response = JSON.parse(data);
+                    
+                    // Display response components
+                    if (response.assistant_message) {
+                        addMessage(response.assistant_message, 'assistant');
+                    }
+                    
+                    if (Array.isArray(response.questions) && response.questions.length) {
+                        addList(response.questions, false);
+                    }
+                    
+                    if (Array.isArray(response.plan) && response.plan.length) {
+                        addList(response.plan, true);
+                    }
+                    
+                    if (Array.isArray(response.actions) && response.actions.length) {
+                        addActionsPreview(response.actions);
+                    }
+                    
+                    // Show/hide confirm button
+                    const hasActions = Array.isArray(response.actions) && response.actions.length > 0;
+                    const shouldShowConfirm = response.status === 'ready_to_execute' || hasActions;
+                    confirmBar.style.display = shouldShowConfirm ? 'block' : 'none';
+                    
+                    return 'OK';
+                    
+                } catch (e) {
+                    hideTypingIndicator();
+                    addMessage('HTML handler exception: ' + e.toString(), 'assistant', 'error');
+                    return 'Exception: ' + e.toString();
+                }
+            }
+        };
+        
+        // ============================================================
+        // Initialization
+        // ============================================================
+        
+        // Check initial connection
+        checkFusionConnection();
+        
+        // Focus input on load
+        messageInput.focus();
+    </script>
 </body>
 </html>

@@ -1,35 +1,48 @@
-import os, sys, json, pathlib, traceback, re, time
-from typing import List, Literal, Dict, Any
+"""
+Agent Runner for PASCAL Fusion Add-in
+Handles LLM communication and conversation management
+"""
+
+import os
+import sys
+import json
+import pathlib
+import traceback
+import re
+import time
+from typing import List, Literal, Dict, Any, Optional
 from pydantic import BaseModel, ValidationError, ConfigDict, Field
 from openai import OpenAI
 from dotenv import load_dotenv
+
+# Load environment variables
 load_dotenv()
 
 # ============================================================
-# Config / State
+# Configuration
 # ============================================================
 
 ROOT = pathlib.Path(__file__).resolve().parent
 STATE_DIR = ROOT / "state"
 STATE_DIR.mkdir(exist_ok=True)
 
-DEV_MODE = False                   # set True only when running manually
-DEV_SESSION_ID = "dev_session"
-OPENAI_MODEL = "gpt-4o-mini"       # any chat-completions model you have
-MAX_TRIES = 3                      # LLM retry attempts on bad format
-RETRY_SLEEP_S = 0.5                # short backoff between retries
+# LLM Configuration
+OPENAI_MODEL = "gpt-4o"
+MAX_TRIES = 3
+RETRY_SLEEP_S = 0.5
 
 # ============================================================
-# Pydantic reply schema (strict & safe)
+# Data Models
 # ============================================================
 
 StatusT = Literal["need_clarification", "planned", "ready_to_execute", "executing", "done"]
 
 class Action(BaseModel):
+    """Represents a single Fusion action to execute"""
     model_config = ConfigDict(extra="forbid")
     action: Literal[
         "create_sketch",
-        "add_rectangle",
+        "add_rectangle", 
         "add_circle",
         "extrude_last_profile",
         "add_text"
@@ -37,6 +50,7 @@ class Action(BaseModel):
     params: Dict[str, Any]
 
 class AgentReply(BaseModel):
+    """Response from the LLM agent"""
     model_config = ConfigDict(extra="forbid")
     status: StatusT
     assistant_message: str = ""
@@ -46,483 +60,418 @@ class AgentReply(BaseModel):
     requires_confirmation: bool = False
 
 # ============================================================
-# Prompting
+# Prompts and System Messages
 # ============================================================
 
-SYSTEM_ROLE = """
+SYSTEM_PROMPT = """
 You are PASCAL Agent, a Fusion CAD assistant.
 
-PIPELINE (and required keys):
-1) If the request is ambiguous, ask short clarifying questions ONLY.
-   Output JSON:
-     - status: "need_clarification"
-     - questions: array with >=1 specific question strings
-     - assistant_message: one-sentence summary (not a question)
-2) Once clear, output an ordered plan with brief rationale.
-   Output JSON:
-     - status: "planned"
-     - plan: numbered steps with 1-line rationale each
-     - assistant_message: short summary of the plan
-3) Convert the plan to allowed actions (below).
-   Output JSON:
-     - status: "ready_to_execute"
-     - actions: only from the allowed set
-     - requires_confirmation: true
-     - assistant_message: short summary
-4) Wait for confirmation (you never execute actions).
-5) After host executes and reports back:
-   Output JSON:
-     - status: "done"
-     - assistant_message: short summary of what was executed
+WORKFLOW:
+1. CLARIFY: If request is ambiguous, ask specific questions
+   - status: "need_clarification"
+   - questions: array of specific questions
+   - assistant_message: brief summary
 
-ALLOWED ACTIONS (exact names & params):
+2. PLAN & ACTIONS: Once clear, create numbered steps AND executable actions
+   - status: "ready_to_execute"
+   - plan: numbered steps with 1-line rationale each
+   - actions: executable Fusion actions (REQUIRED)
+   - requires_confirmation: true
+   - assistant_message: plan summary
+
+3. EXECUTE: Wait for user confirmation, then execute
+   - status: "executing" (during execution)
+   - status: "done" (after execution result)
+
+CRITICAL: You MUST generate actions[] when the request is clear. Do not stop at planning.
+
+ALLOWED ACTIONS:
 - create_sketch(plane: 'XY'|'YZ'|'XZ')
 - add_rectangle(sketch_id: string, x1:number, y1:number, x2:number, y2:number)
 - add_circle(sketch_id: string, cx:number, cy:number, r:number)
 - extrude_last_profile(distance:number, operation:'NewBody'|'Cut'|'Join')
 - add_text(plane:'XY'|'YZ'|'XZ', text:string, height:number, x:number, y:number)
 
-UNITS & NAMING:
-- Use centimeters for all distances & sketch coordinates.
-- Sketch IDs you propose must be "sk_0", "sk_1", ... in creation order.
-- Use (0,0) origin when user gives no position and say so in plan.
+UNITS & CONVENTIONS:
+- Use centimeters for all distances
+- Sketch IDs: "sk_0", "sk_1", ... in creation order
+- Default position: (0,0) origin when not specified
+- For squares: if user says "20 mm sides", use x1=-1, y1=-1, x2=1, y2=1 (2cm square)
+- For extrude: distance should be in cm (e.g., 30mm = 3cm)
 
-STRICT OUTPUT:
-Return ONE JSON object only, with keys:
+EXTRUDE NOTES:
+- Always use "NewBody" operation unless specifically cutting or joining
+- The profile must be from a closed sketch (rectangle, circle, etc.)
+- Distance must be positive and in centimeters
+
+OUTPUT FORMAT:
+Return ONLY a JSON object with keys:
 status, assistant_message, questions (if any), plan (if any),
-actions (if any), requires_confirmation (if any).
-NO prose outside JSON. NO code fences. NO markdown.
+actions (if any), requires_confirmation (if any)
 
-STRICT STATE GATING:
-- You NEVER claim geometry was created/extruded unless the host sent an "execution_result".
-- For "user_message" / "confirm_execute" you only ask, plan, or propose actions.
-- "done" is ONLY allowed when the last event was "execution_result".
-"""
-
-USER_GUIDE = """
-Ask clarifying questions until confident (put them in questions[]; do NOT put questions in assistant_message).
-When planning: number steps and add one line of rationale each.
-Actions must match the plan and units precisely.
-"""
-
-EXAMPLE_NEED_CLARIFY = {
-  "role": "system",
-  "content": """FORMAT EXAMPLE (do not copy text; match structure):
+EXAMPLES:
+For "20 mm sides in XY plane":
 {
-  "status": "need_clarification",
-  "assistant_message": "I need two details to proceed.",
-  "questions": [
-    "Should 2 cm refer to side length (2×2 cm) or 2 cm² area?",
-    "Where should the square be positioned on the XY plane (e.g., centered at origin or specific coordinates)?"
+  "status": "ready_to_execute",
+  "assistant_message": "I will create a 2cm square centered at origin on XY plane.",
+  "plan": ["1. Create sketch on XY plane", "2. Add 2cm square centered at origin"],
+  "actions": [
+    {"action": "create_sketch", "params": {"plane": "XY"}},
+    {"action": "add_rectangle", "params": {"sketch_id": "sk_0", "x1": -1, "y1": -1, "x2": 1, "y2": 1}}
   ],
-  "plan": [],
-  "actions": [],
-  "requires_confirmation": false
+  "requires_confirmation": true
 }
-"""}
+"""
 
 # ============================================================
-# Helpers: state, JSON repair/normalization
+# State Management
 # ============================================================
 
-def _state_path(session_id: str) -> pathlib.Path:
-    return STATE_DIR / f"{session_id}.json"
-
-def load_state(session_id: str):
-    p = _state_path(session_id)
-    if p.exists():
-        try:
-            return json.loads(p.read_text(encoding="utf-8"))
-        except Exception:
-            pass
-    return {"session_id": session_id, "history": []}
-
-def save_state(session_id: str, data: dict):
-    _state_path(session_id).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-
-def strip_code_fences(text: str) -> str:
-    if not text:
-        return text
-    # remove ```json ... ``` or ``` ... ```
-    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip(), flags=re.IGNORECASE|re.DOTALL)
-    return text.strip()
-
-def extract_json_object(text: str) -> str:
-    """
-    Try to extract the first balanced {...} block from text.
-    """
-    s = strip_code_fences(text)
-    start = s.find('{')
-    if start == -1:
-        return s  # let it fail later
-    depth = 0
-    for i in range(start, len(s)):
-        c = s[i]
-        if c == '{':
-            depth += 1
-        elif c == '}':
-            depth -= 1
-            if depth == 0:
-                return s[start:i+1]
-    return s  # fallback; may still be invalid
-
-def coerce_defaults(d: dict) -> dict:
-    d = dict(d)
-    d.setdefault("assistant_message", "")
-    d.setdefault("questions", [])
-    d.setdefault("plan", [])
-    d.setdefault("actions", [])
-    d.setdefault("requires_confirmation", False)
-    return d
-
-def normalize_types(raw: dict) -> dict:
-    """
-    Make best-effort coercions so Pydantic can validate.
-    - questions: str -> [str] (split lines)
-    - plan: str -> [str] (split lines/numbers)
-    - actions: str -> try json.loads
-    - status: fallback to need_clarification if unknown
-    """
-    out = dict(raw)
-
-    # status
-    if out.get("status") not in {"need_clarification","planned","ready_to_execute","executing","done"}:
-        out["status"] = "need_clarification"
-
-    # questions
-    q = out.get("questions")
-    if isinstance(q, str):
-        # split on lines or question marks
-        lines = [s.strip() for s in re.split(r"[\r\n]+|(?<=\?)\s+", q) if s.strip()]
-        out["questions"] = lines
-    elif not isinstance(q, list):
-        out["questions"] = []
-
-    # plan
-    p = out.get("plan")
-    if isinstance(p, str):
-        # split numbered list; keep lines
-        items = [s.strip(" -\t") for s in re.split(r"[\r\n]+", p) if s.strip()]
-        out["plan"] = items
-    elif not isinstance(p, list):
-        out["plan"] = []
-
-    # actions
-    a = out.get("actions")
-    if isinstance(a, str):
-        try:
-            out["actions"] = json.loads(a)
-        except Exception:
-            out["actions"] = []
-    elif not isinstance(a, list):
-        out["actions"] = []
-
-    # requires_confirmation
-    rc = out.get("requires_confirmation")
-    if isinstance(rc, str):
-        out["requires_confirmation"] = rc.strip().lower() in {"true","yes","1"}
-    elif not isinstance(rc, bool):
-        out["requires_confirmation"] = False
-
-    return out
-
-def filter_allowed_actions(raw: dict) -> dict:
-    allowed = {"create_sketch","add_rectangle","add_circle","extrude_last_profile","add_text"}
-    actions = raw.get("actions", [])
-    if isinstance(actions, list):
-        filtered = []
-        for a in actions:
-            if isinstance(a, dict) and a.get("action") in allowed:
-                filtered.append(a)
-        raw["actions"] = filtered
-    else:
-        raw["actions"] = []
-    return raw
-
-def postprocess_reply(reply: AgentReply, user_text: str) -> AgentReply:
-    """
-    Ensure questions[] exists when we need clarification; move a question out of assistant_message if needed.
-    """
-    if reply.status == "need_clarification" and not reply.questions:
-        am = (reply.assistant_message or "").strip()
-        qs: List[str] = []
-        if am.endswith("?"):
-            qs.append(am)
-            reply.assistant_message = "I need a detail to proceed."
-        else:
-            t = (user_text or "").lower()
-            if "square" in t and ("cm" in t or "mm" in t):
-                qs.append("Should the stated size refer to side length (e.g., 2 cm per side) or area?")
-            qs.append("Where should the geometry be positioned on the XY plane (e.g., centered at origin or specific coordinates)?")
-        reply.questions = qs
-    return reply
-
-def is_confirmation_text(t: str) -> bool:
-    t = (t or '').strip().lower()
-    if not t:
-        return False
-    # be generous—common confirmations
-    confirmations = {
-        "yes","y","ok","okay","sure","proceed","confirm","go ahead",
-        "looks good","sounds good","do it","yes do it","alright","yep","yeah"
-    }
-    return t in confirmations or t.startswith("yes") or t.startswith("ok")
-
-CONFIRM_QUESTION = "Are you happy with this plan? Reply 'yes' to proceed to execution, or describe any changes."
-
-# ============================================================
-# LLM call with retries / correction
-# ============================================================
-
-def ask_model_with_retries(messages) -> AgentReply:
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY environment variable is not set.")
-    client = OpenAI(api_key=api_key)
-
-    errors_for_model = None
-    content_prev = None
-
-    for attempt in range(1, MAX_TRIES+1):
-        # Build attempt-specific messages
-        attempt_msgs = list(messages)
-        if attempt > 1:
-            # Correction turn: tell the model what went wrong and ask for corrected JSON
-            fix_block = {
-                "role": "system",
-                "content": (
-                    "Your previous reply did not strictly match the required JSON schema. "
-                    "You must return ONLY a single JSON object with the required keys. "
-                    "Do not include markdown, code fences, or explanations."
-                )
-            }
-            attempt_msgs.append(fix_block)
-            if content_prev:
-                attempt_msgs.append({"role":"user","content": f"Previous output:\n{content_prev}"})
-            if errors_for_model:
-                attempt_msgs.append({"role":"user","content": f"Schema/validation errors:\n{errors_for_model}"})
-
-        # Call model
-        resp = client.chat.completions.create(
-            model=OPENAI_MODEL,
-            temperature=0.2,
-            response_format={"type": "json_object"},
-            messages=attempt_msgs
+class StateManager:
+    """Manages conversation state and persistence"""
+    
+    def __init__(self, session_id: str):
+        self.session_id = session_id
+        self.state_path = STATE_DIR / f"{session_id}.json"
+    
+    def load(self) -> dict:
+        """Load conversation state from file"""
+        if self.state_path.exists():
+            try:
+                return json.loads(self.state_path.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+        return {"session_id": self.session_id, "history": []}
+    
+    def save(self, data: dict):
+        """Save conversation state to file"""
+        self.state_path.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2), 
+            encoding="utf-8"
         )
-        content = resp.choices[0].message.content or ""
-        content_prev = content
-
-        # Try to parse/repair/normalize/validate
-        try:
-            raw_text = extract_json_object(content)
-            parsed = json.loads(raw_text)
-        except Exception as e:
-            errors_for_model = f"JSON parse error: {e}\nRaw: {content[:500]}"
-            time.sleep(RETRY_SLEEP_S)
-            continue
-
-        parsed = coerce_defaults(parsed)
-        parsed = normalize_types(parsed)
-        parsed = filter_allowed_actions(parsed)
-
-        try:
-            obj = AgentReply.model_validate(parsed)
-            return obj
-        except ValidationError as ve:
-            errors_for_model = str(ve)
-            time.sleep(RETRY_SLEEP_S)
-            continue
-
-    # After MAX_TRIES, return a safe clarification message instead of crashing
-    fallback = {
-        "status":"need_clarification",
-        "assistant_message": "I had trouble producing a valid plan. Please restate your request with sizes, plane, and position.",
-        "questions":[
-            "What exact sizes (with units)?",
-            "Which plane (XY, YZ, XZ)?",
-            "Where should it be positioned (e.g., centered at origin or specific coordinates)?"
-        ],
-        "plan":[], "actions":[], "requires_confirmation": False
-    }
-    return AgentReply.model_validate(fallback)
+    
+    def add_turn(self, role: str, content: str):
+        """Add a conversation turn to history"""
+        state = self.load()
+        state["history"].append({"role": role, "content": content})
+        self.save(state)
+    
+    def get_recent_history(self, max_turns: int = 8) -> List[dict]:
+        """Get recent conversation history"""
+        state = self.load()
+        return state.get("history", [])[-max_turns:]
 
 # ============================================================
-# Conversation scaffolding / argv
+# LLM Communication
 # ============================================================
 
-def build_messages_from_state(state: dict, event: str, user_message: str):
-    msgs = [
-        {"role": "system", "content": SYSTEM_ROLE},
-        {"role": "system", "content": USER_GUIDE},
-        EXAMPLE_NEED_CLARIFY
-    ]
-    for turn in state.get("history", [])[-8:]:
-        if isinstance(turn, dict) and "role" in turn and "content" in turn:
-            msgs.append(turn)
+class LLMClient:
+    """Handles communication with OpenAI API"""
+    
+    def __init__(self):
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise RuntimeError("OPENAI_API_KEY environment variable is not set")
+        self.client = OpenAI(api_key=api_key)
+    
+    def _build_messages(self, history: List[dict], event: str, user_message: str) -> List[dict]:
+        """Build message list for OpenAI API"""
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT}
+        ]
+        
+        # Add conversation history
+        for turn in history:
+            if isinstance(turn, dict) and "role" in turn and "content" in turn:
+                messages.append(turn)
+        
+        # Add current event
+        if event == "user_message":
+            messages.append({"role": "user", "content": user_message})
+        elif event == "confirm_execute":
+            messages.append({"role": "user", "content": "User confirms: proceed with execution"})
+        elif event == "execution_result":
+            messages.append({"role": "user", "content": f"Execution result: {user_message}"})
+        elif event == "force_actions":
+            messages.append({
+                "role": "user", 
+                "content": "Convert the plan into actions now. Return JSON with status='ready_to_execute'"
+            })
+        
+        return messages
+    
+    def _parse_and_validate_response(self, content: str) -> AgentReply:
+        """Parse and validate LLM response"""
+        # Extract JSON from response
+        json_text = self._extract_json(content)
+        
+        try:
+            parsed = json.loads(json_text)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON: {e}")
+        
+        # Normalize and validate
+        parsed = self._normalize_response(parsed)
+        
+        try:
+            return AgentReply.model_validate(parsed)
+        except ValidationError as e:
+            raise ValueError(f"Validation error: {e}")
+    
+    def _extract_json(self, text: str) -> str:
+        """Extract JSON object from text"""
+        # Remove code fences
+        text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip(), 
+                     flags=re.IGNORECASE|re.DOTALL)
+        
+        # Find first balanced {...} block
+        start = text.find('{')
+        if start == -1:
+            return text
+        
+        depth = 0
+        for i in range(start, len(text)):
+            if text[i] == '{':
+                depth += 1
+            elif text[i] == '}':
+                depth -= 1
+                if depth == 0:
+                    return text[start:i+1]
+        
+        return text
+    
+    def _normalize_response(self, data: dict) -> dict:
+        """Normalize response data for validation"""
+        normalized = {
+            "status": data.get("status", "need_clarification"),
+            "assistant_message": data.get("assistant_message", ""),
+            "questions": self._normalize_list(data.get("questions")),
+            "plan": self._normalize_list(data.get("plan")),
+            "actions": self._normalize_actions(data.get("actions")),
+            "requires_confirmation": bool(data.get("requires_confirmation", False))
+        }
+        
+        # Validate status
+        valid_statuses = {"need_clarification", "planned", "ready_to_execute", "executing", "done"}
+        if normalized["status"] not in valid_statuses:
+            normalized["status"] = "need_clarification"
+        
+        return normalized
+    
+    def _normalize_list(self, value) -> List[str]:
+        """Normalize list fields"""
+        if isinstance(value, str):
+            return [s.strip() for s in re.split(r"[\r\n]+", value) if s.strip()]
+        elif isinstance(value, list):
+            return [str(item).strip() for item in value if item]
+        return []
+    
+    def _normalize_actions(self, value) -> List[dict]:
+        """Normalize actions field"""
+        if isinstance(value, list):
+            return [action for action in value if isinstance(action, dict) and "action" in action]
+        return []
+    
+    def call_with_retries(self, messages: List[dict]) -> AgentReply:
+        """Call LLM with retry logic"""
+        last_error = None
+        
+        for attempt in range(MAX_TRIES):
+            try:
+                # Add correction message if retrying
+                if attempt > 0:
+                    messages.append({
+                        "role": "system",
+                        "content": "Your previous response was invalid. Return ONLY a valid JSON object."
+                    })
+                
+                response = self.client.chat.completions.create(
+                    model=OPENAI_MODEL,
+                    temperature=0.2,
+                    response_format={"type": "json_object"},
+                    messages=messages
+                )
+                
+                content = response.choices[0].message.content or ""
+                return self._parse_and_validate_response(content)
+                
+            except Exception as e:
+                last_error = e
+                if attempt < MAX_TRIES - 1:
+                    time.sleep(RETRY_SLEEP_S)
+        
+        # Return fallback response after all retries
+        return AgentReply(
+            status="need_clarification",
+            assistant_message="I had trouble processing your request. Please restate with specific details.",
+            questions=[
+                "What exact sizes (with units)?",
+                "Which plane (XY, YZ, XZ)?", 
+                "Where should it be positioned?"
+            ]
+        )
 
-    if event == "user_message":
-        msgs.append({"role":"user","content": user_message})
-    elif event == "confirm_execute":
-        msgs.append({"role":"user","content":"User confirms: proceed with execution of proposed actions."})
-    elif event == "execution_result":
-        msgs.append({"role":"user","content": f"Execution result from Fusion host: {user_message}"})
-    elif event == "force_actions":
-        # New: internal nudge to turn the last plan into actions *now*
-        msgs.append({
+# ============================================================
+# Conversation Handler
+# ============================================================
+
+class ConversationHandler:
+    """Handles the conversation flow and state transitions"""
+    
+    def __init__(self, session_id: str):
+        self.session_id = session_id
+        self.state_manager = StateManager(session_id)
+        self.llm_client = LLMClient()
+    
+    def _is_confirmation(self, text: str) -> bool:
+        """Check if user text is a confirmation"""
+        text = text.strip().lower()
+        confirmations = {
+            "yes", "y", "ok", "okay", "sure", "proceed", "confirm", 
+            "go ahead", "looks good", "sounds good", "do it"
+        }
+        return text in confirmations or text.startswith("yes") or text.startswith("ok")
+    
+    def _ensure_confirmation_question(self, reply: AgentReply) -> AgentReply:
+        """Add confirmation question to planned responses"""
+        if reply.status == "planned":
+            # If we only have a plan but no actions, force action generation
+            if not reply.actions:
+                reply.status = "ready_to_execute"
+                reply.requires_confirmation = True
+                # Try to generate actions from the plan
+                if reply.plan:
+                    # Simple action generation based on plan
+                    actions = []
+                    for i, step in enumerate(reply.plan):
+                        if "sketch" in step.lower() and "xy" in step.lower():
+                            actions.append({"action": "create_sketch", "params": {"plane": "XY"}})
+                        elif "rectangle" in step.lower() or "square" in step.lower():
+                            actions.append({"action": "add_rectangle", "params": {"sketch_id": "sk_0", "x1": -1, "y1": -1, "x2": 1, "y2": 1}})
+                        elif "circle" in step.lower():
+                            actions.append({"action": "add_circle", "params": {"sketch_id": "sk_0", "cx": 0, "cy": 0, "r": 1}})
+                        elif "extrude" in step.lower():
+                            actions.append({"action": "extrude_last_profile", "params": {"distance": 1, "operation": "NewBody"}})
+                    reply.actions = actions
+            else:
+                confirm_q = "Are you happy with this plan? Reply 'yes' to proceed to execution."
+                if confirm_q not in reply.questions:
+                    reply.questions.append(confirm_q)
+        return reply
+    
+    def _handle_plan_confirmation(self, user_message: str, last_status: str) -> bool:
+        """Check if user is confirming a plan"""
+        return (self._is_confirmation(user_message) and last_status == "planned")
+    
+    def _force_action_generation(self, messages: List[dict]) -> AgentReply:
+        """Force the LLM to generate actions from plan"""
+        messages.append({
             "role": "user",
             "content": (
-                "Convert the most recent plan into actions now. "
-                "Return ONLY JSON with status='ready_to_execute', actions[], requires_confirmation=true, "
-                "and a short assistant_message. Do not ask more questions."
+                "Convert the plan into actions now. Use defaults if needed: "
+                "plane=XY, position=(0,0), units=cm. "
+                "Return JSON with status='ready_to_execute', actions[], requires_confirmation=true."
             )
         })
-    else:
-        msgs.append({"role":"user","content": user_message})
-    return msgs
-
-
-def parse_payload_from_argv():
-    if len(sys.argv) < 3:
-        print(json.dumps({"error": "Usage: agent_runner.py <session_id> <json_payload | ->"}))
-        sys.exit(2)
-    session_id = sys.argv[1]
-    raw = sys.argv[2]
-    try:
-        if raw == "-":
-            payload = json.loads(sys.stdin.read())
-        elif raw.endswith(".json") and pathlib.Path(raw).exists():
-            payload = json.loads(pathlib.Path(raw).read_text(encoding="utf-8"))
-        else:
-            payload = json.loads(raw)
-    except Exception as e:
-        print(json.dumps({
-            "status":"need_clarification",
-            "assistant_message": f"Could not parse payload: {e}",
-            "questions":[], "plan":[], "actions":[], "requires_confirmation": False
-        }))
-        sys.exit(3)
-    return session_id, payload
-
-# ============================================================
-# Main
-# ============================================================
-
-def main():
-    try:
-        # -------- Input & session --------
-        if DEV_MODE:
-            session_id = DEV_SESSION_ID
-            payload = {"event": "user_message", "user_message": "make a 2 cm square on XY and extrude 1 cm"}
-        else:
-            session_id, payload = parse_payload_from_argv()
-
-        event = payload.get("event", "user_message")
-        user_message = (payload.get("user_message") or "").strip()
-
-        # -------- State & gating --------
-        state = load_state(session_id)
+        return self.llm_client.call_with_retries(messages)
+    
+    def process_event(self, event: str, user_message: str) -> AgentReply:
+        """Process a conversation event and return response"""
+        # Load state
+        state = self.state_manager.load()
         last_status = state.get("last_status")
-        plan_confirmed = (event == "user_message" and is_confirmation_text(user_message) and last_status == "planned")
-
-        # -------- Build messages --------
-        messages = build_messages_from_state(state, event, user_message)
-
-        # If the user just approved the plan, force “convert plan → actions”
-        if plan_confirmed:
+        
+        # Build messages
+        history = self.state_manager.get_recent_history()
+        messages = self.llm_client._build_messages(history, event, user_message)
+        
+        # Handle plan confirmation
+        if self._handle_plan_confirmation(user_message, last_status):
             messages.append({
                 "role": "user",
-                "content": (
-                    "User approves the plan. Convert the previously proposed plan into actions now. "
-                    "Return ONLY JSON with status='ready_to_execute', actions[], requires_confirmation=true, "
-                    "and a short assistant_message. Do not ask more questions."
-                )
+                "content": "User approves the plan. Convert to actions now."
             })
-
-        # -------- Ask model (robust: retries/repair inside) --------
-        reply: AgentReply = ask_model_with_retries(messages)
-
-        # If still only planned after an approval, force a 2nd pass that MUST produce actions
-        if plan_confirmed and (reply.status != "ready_to_execute" or not reply.actions):
-            messages2 = list(messages)
-            messages2.append({
-                "role": "user",
-                "content": (
-                    "You MUST now output actions[]. If any detail is missing, assume defaults: "
-                    "plane=XY, position=(0,0), units=cm (convert mm→cm by /10). "
-                    "Return ONLY JSON with status='ready_to_execute', actions[], requires_confirmation=true."
-                )
-            })
-            reply2 = ask_model_with_retries(messages2)
-            if reply2.actions:
-                reply = reply2
-
-        # In a planned reply, always add a clear confirm question
-        if reply.status == "planned":
-            qs = list(reply.questions or [])
-            if all(q.strip().lower() != CONFIRM_QUESTION.lower() for q in qs):
-                qs.append(CONFIRM_QUESTION)
-            reply.questions = qs
-
-        # State gating: never claim “done” unless host sent execution_result
+        
+        # Get LLM response
+        reply = self.llm_client.call_with_retries(messages)
+        
+        # Handle plan confirmation edge cases
+        if (self._handle_plan_confirmation(user_message, last_status) and 
+            reply.status != "ready_to_execute"):
+            reply = self._force_action_generation(messages)
+        
+        # Add confirmation question if needed
+        reply = self._ensure_confirmation_question(reply)
+        
+        # State gating - prevent invalid status transitions
         if event != "execution_result" and reply.status == "done":
             if reply.actions:
                 reply.status = "ready_to_execute"
                 reply.requires_confirmation = True
-                if not reply.assistant_message:
-                    reply.assistant_message = "Plan prepared; ready to execute when you confirm."
             else:
                 reply.status = "planned"
-                if not reply.assistant_message:
-                    reply.assistant_message = "Plan prepared. Confirm to proceed, or describe changes."
-
-        # Ensure ready state asks for confirmation
-        if reply.status == "ready_to_execute" and not reply.requires_confirmation:
+        
+        # Ensure confirmation is required for ready state
+        if reply.status == "ready_to_execute":
             reply.requires_confirmation = True
-
-        # If user clicked Confirm and model forgot actions, reuse last prepared actions
-        if event == "confirm_execute" and not reply.actions:
-            prev_actions = state.get("last_actions") or []
-            if prev_actions:
-                try:
-                    reply.actions = [Action.model_validate(a) for a in prev_actions]
-                    reply.status = "ready_to_execute"
-                    reply.requires_confirmation = True
-                    if not reply.assistant_message:
-                        reply.assistant_message = "Using previously prepared actions. Proceeding to execution."
-                except Exception:
-                    pass
-
-        # Final polish (ensures questions[] when needed, etc.)
-        reply = postprocess_reply(reply, user_message)
-
-        # -------- Persist breadcrumbs --------
+        
+        # Save state
         state["last_status"] = reply.status
         if reply.actions:
-            state["last_actions"] = [a.model_dump() for a in reply.actions]
+            state["last_actions"] = [action.model_dump() for action in reply.actions]
+        
+        self.state_manager.add_turn("user", user_message)
+        self.state_manager.add_turn("assistant", json.dumps(reply.model_dump()))
+        
+        return reply
 
-        state["history"].append({
-            "role": "user",
-            "content": user_message if event == "user_message" else f"[{event}] {user_message}"
-        })
-        state["history"].append({
-            "role": "assistant",
-            "content": json.dumps(reply.model_dump(), ensure_ascii=False)
-        })
-        save_state(session_id, state)
+# ============================================================
+# Main Entry Point
+# ============================================================
 
-        # -------- Output --------
+def main():
+    """Main entry point for the agent runner"""
+    try:
+        # Parse command line arguments
+        if len(sys.argv) < 3:
+            print(json.dumps({"error": "Usage: agent_runner.py <session_id> <json_payload | ->"}))
+            sys.exit(2)
+        
+        session_id = sys.argv[1]
+        raw_payload = sys.argv[2]
+        
+        # Parse payload
+        try:
+            if raw_payload == "-":
+                payload = json.loads(sys.stdin.read())
+            elif raw_payload.endswith(".json") and pathlib.Path(raw_payload).exists():
+                payload = json.loads(pathlib.Path(raw_payload).read_text())
+            else:
+                payload = json.loads(raw_payload)
+        except Exception as e:
+            print(json.dumps({
+                "status": "need_clarification",
+                "assistant_message": f"Could not parse payload: {e}",
+                "questions": [], "plan": [], "actions": [], "requires_confirmation": False
+            }))
+            sys.exit(3)
+        
+        # Process event
+        event = payload.get("event", "user_message")
+        user_message = payload.get("user_message", "").strip()
+        
+        handler = ConversationHandler(session_id)
+        reply = handler.process_event(event, user_message)
+        
+        # Output response
         print(json.dumps(reply.model_dump(), ensure_ascii=False))
-
+        
     except Exception as e:
         print(json.dumps({
             "status": "need_clarification",
-            "assistant_message": f"LLM agent error: {e}\n{traceback.format_exc()}",
-            "questions": [],
-            "plan": [],
-            "actions": [],
-            "requires_confirmation": False
+            "assistant_message": f"Agent error: {e}",
+            "questions": [], "plan": [], "actions": [], "requires_confirmation": False
         }))
-
 
 if __name__ == "__main__":
     main()

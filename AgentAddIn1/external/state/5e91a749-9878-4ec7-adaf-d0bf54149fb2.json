@@ -1,0 +1,29 @@
+{
+  "session_id": "5e91a749-9878-4ec7-adaf-d0bf54149fb2",
+  "history": [
+    {
+      "role": "user",
+      "content": "make a circle of radius 15 mm in the XY plane centred at the origin and then extrude it by 20 mm"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"ready_to_execute\", \"assistant_message\": \"I will create a circle with a radius of 1.5 cm centered at the origin on the XY plane and then extrude it by 2 cm.\", \"questions\": [], \"plan\": [\"1. Create a sketch on the XY plane.\", \"2. Add a circle with a radius of 1.5 cm centered at the origin.\", \"3. Extrude the circle by 2 cm to create a new body.\"], \"actions\": [{\"action\": \"create_sketch\", \"params\": {\"plane\": \"XY\"}}, {\"action\": \"add_circle\", \"params\": {\"sketch_id\": \"sk_0\", \"cx\": 0, \"cy\": 0, \"r\": 1.5}}, {\"action\": \"extrude_last_profile\", \"params\": {\"distance\": 2, \"operation\": \"NewBody\"}}], \"requires_confirmation\": true}"
+    },
+    {
+      "role": "user",
+      "content": "OK to proceed"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"executing\", \"assistant_message\": \"\", \"questions\": [], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    },
+    {
+      "role": "user",
+      "content": "{\"ok\": true, \"details\": \"All actions executed successfully.\"}"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"done\", \"assistant_message\": \"The circle with a radius of 1.5 cm was successfully created on the XY plane and extruded by 2 cm to form a new body.\", \"questions\": [], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    }
+  ]
+}

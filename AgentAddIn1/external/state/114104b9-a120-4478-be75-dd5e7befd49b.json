@@ -1,0 +1,101 @@
+{
+  "session_id": "114104b9-a120-4478-be75-dd5e7befd49b",
+  "history": [
+    {
+      "role": "user",
+      "content": "create a square of side 20 mm in XY plane"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"ready_to_execute\", \"assistant_message\": \"I will create a 2cm square centered at origin on the XY plane.\", \"questions\": [], \"plan\": [\"1. Create a sketch on the XY plane.\", \"2. Add a 2cm square centered at the origin.\"], \"actions\": [{\"action\": \"create_sketch\", \"params\": {\"plane\": \"XY\"}}, {\"action\": \"add_rectangle\", \"params\": {\"sketch_id\": \"sk_0\", \"x1\": -1, \"y1\": -1, \"x2\": 1, \"y2\": 1}}], \"requires_confirmation\": true}"
+    },
+    {
+      "role": "user",
+      "content": "OK to proceed"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"executing\", \"assistant_message\": \"Executing the creation of a 2cm square on the XY plane.\", \"questions\": [], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    },
+    {
+      "role": "user",
+      "content": "{\"ok\": true, \"details\": \"All actions executed successfully.\"}"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"done\", \"assistant_message\": \"The 2cm square has been successfully created on the XY plane.\", \"questions\": [], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    },
+    {
+      "role": "user",
+      "content": "now extrude this by 60 mm"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"ready_to_execute\", \"assistant_message\": \"I will extrude the square by 6cm.\", \"questions\": [], \"plan\": [\"1. Extrude the last created profile by 6cm.\"], \"actions\": [{\"action\": \"extrude_last_profile\", \"params\": {\"distance\": 6, \"operation\": \"NewBody\"}}], \"requires_confirmation\": true}"
+    },
+    {
+      "role": "user",
+      "content": "OK to proceed"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"executing\", \"assistant_message\": \"Extruding the square by 6cm.\", \"questions\": [], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    },
+    {
+      "role": "user",
+      "content": "{\"ok\": true, \"details\": \"All actions executed successfully.\"}"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"done\", \"assistant_message\": \"The square has been successfully extruded by 6cm.\", \"questions\": [], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    },
+    {
+      "role": "user",
+      "content": "create a circle of radius 30mm in the YZ plane centred at the orignin"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"ready_to_execute\", \"assistant_message\": \"I will create a circle with a radius of 3cm centered at the origin on the YZ plane.\", \"questions\": [], \"plan\": [\"1. Create a sketch on the YZ plane.\", \"2. Add a circle with a radius of 3cm centered at the origin.\"], \"actions\": [{\"action\": \"create_sketch\", \"params\": {\"plane\": \"YZ\"}}, {\"action\": \"add_circle\", \"params\": {\"sketch_id\": \"sk_1\", \"cx\": 0, \"cy\": 0, \"r\": 3}}], \"requires_confirmation\": true}"
+    },
+    {
+      "role": "user",
+      "content": "OK to proceed"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"executing\", \"assistant_message\": \"Creating a circle with a radius of 3cm on the YZ plane.\", \"questions\": [], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    },
+    {
+      "role": "user",
+      "content": "{\"ok\": true, \"details\": \"All actions executed successfully.\"}"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"done\", \"assistant_message\": \"The circle with a radius of 3cm has been successfully created on the YZ plane.\", \"questions\": [], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    },
+    {
+      "role": "user",
+      "content": "now extrude this by 60 mm"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"ready_to_execute\", \"assistant_message\": \"I will extrude the circle by 6cm to create a cylindrical shape.\", \"questions\": [], \"plan\": [\"1. Extrude the last created circle profile by 6cm.\"], \"actions\": [{\"action\": \"extrude_last_profile\", \"params\": {\"distance\": 6, \"operation\": \"NewBody\"}}], \"requires_confirmation\": true}"
+    },
+    {
+      "role": "user",
+      "content": "OK to proceed"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"executing\", \"assistant_message\": \"Extruding the circle by 6cm to create a cylindrical shape.\", \"questions\": [], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    },
+    {
+      "role": "user",
+      "content": "{\"ok\": true, \"details\": \"All actions executed successfully.\"}"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"done\", \"assistant_message\": \"The circle has been successfully extruded by 6cm, creating a cylindrical shape.\", \"questions\": [], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    }
+  ]
+}

@@ -1,21 +1,97 @@
-# Application Global Variables
-# This module serves as a way to share variables across different
-# modules (global variables).
+# Configuration for AgentAddIn1
+# Centralized settings for the Fusion Add-in
 
 import os
+import pathlib
+from pathlib import Path
 
-# Flag that indicates to run in Debug mode or not. When running in Debug mode
-# more information is written to the Text Command window. Generally, it's useful
-# to set this to True while developing an add-in and set it to False when you
-# are ready to distribute it.
+# ============================================================
+# Add-in Configuration
+# ============================================================
+
+# Debug mode - set to False for production
 DEBUG = True
 
-# Gets the name of the add-in from the name of the folder the py file is in.
-# This is used when defining unique internal names for various UI elements 
-# that need a unique name. It's also recommended to use a company name as 
-# part of the ID to better ensure the ID is unique.
+# Add-in identification
 ADDIN_NAME = os.path.basename(os.path.dirname(__file__))
-COMPANY_NAME = 'ACME'
+COMPANY_NAME = 'PASCAL'
 
-# Palettes
-sample_palette_id = f'{COMPANY_NAME}_{ADDIN_NAME}_palette_id'
+# UI Configuration
+WORKSPACE_ID = 'FusionDesignEnvironment'
+PANEL_ID = 'SolidCreatePanel'
+CMD_ID = 'pascal_agent_cmd'
+CMD_NAME = 'PASCAL Agent'
+CMD_DESC = 'Chat, clarify, plan, and execute CAD steps safely.'
+PALETTE_ID = 'pascal_agent_palette'
+
+# Palette dimensions
+PALETTE_WIDTH = 460
+PALETTE_HEIGHT = 600
+
+# ============================================================
+# External Agent Configuration
+# ============================================================
+
+# Paths (relative to add-in root)
+HERE = Path(__file__).resolve().parent
+EXTERNAL_DIR = HERE / 'external'
+HTML_FILE = HERE / 'palette.html'
+
+# Python environment - try multiple possible paths
+PYTHON_EXE = None
+AGENT_SCRIPT = str(EXTERNAL_DIR / 'agent_runner.py')
+
+# Try to find Python executable
+possible_python_paths = [
+    str(EXTERNAL_DIR / 'external_venv' / 'Scripts' / 'pythonw.exe'),
+    str(EXTERNAL_DIR / 'external_venv' / 'Scripts' / 'python.exe'),
+    'pythonw.exe',  # Fallback to system Python
+    'python.exe'    # Fallback to system Python
+]
+
+for path in possible_python_paths:
+    if Path(path).exists():
+        PYTHON_EXE = path
+        break
+
+# If no Python found, use a default
+if not PYTHON_EXE:
+    PYTHON_EXE = 'pythonw.exe'
+
+# LLM Configuration
+OPENAI_MODEL = "gpt-4o"
+MAX_RETRIES = 3
+RETRY_SLEEP_SECONDS = 0.5
+REQUEST_TIMEOUT = 180
+
+# ============================================================
+# State Management
+# ============================================================
+
+STATE_DIR = EXTERNAL_DIR / "state"
+STATE_DIR.mkdir(exist_ok=True)
+
+# ============================================================
+# Validation
+# ============================================================
+
+def validate_config():
+    """Validate that all required files and paths exist"""
+    errors = []
+    warnings = []
+    
+    # Critical files that must exist
+    if not HTML_FILE.exists():
+        errors.append(f"HTML file not found: {HTML_FILE}")
+    
+    if not Path(AGENT_SCRIPT).exists():
+        errors.append(f"Agent script not found: {AGENT_SCRIPT}")
+    
+    # Non-critical warnings
+    if not Path(PYTHON_EXE).exists():
+        warnings.append(f"Python executable not found: {PYTHON_EXE}")
+    
+    if not os.getenv("OPENAI_API_KEY"):
+        warnings.append("OPENAI_API_KEY environment variable not set")
+    
+    return errors, warnings
