@@ -1,0 +1,29 @@
+{
+  "session_id": "acf88ad9-405b-4a9e-82c0-01a9f1a2fb8c",
+  "history": [
+    {
+      "role": "user",
+      "content": "Create a 4cm x 4cm x 2cm block and add a 1cm hole in the center"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"ready_to_execute\", \"assistant_message\": \"I will create a 4cm x 4cm x 2cm block and add a 1cm diameter hole in the center.\", \"questions\": [], \"plan\": [\"1. Create a sketch on the XY plane.\", \"2. Add a 4cm x 4cm square centered at the origin.\", \"3. Extrude the square by 2cm to create a block.\", \"4. Create a 1cm diameter hole in the center of the top face of the block.\"], \"actions\": [{\"action\": \"create_sketch\", \"params\": {\"plane\": \"XY\"}}, {\"action\": \"add_rectangle\", \"params\": {\"sketch_id\": \"sk_0\", \"x1\": -2, \"y1\": -2, \"x2\": 2, \"y2\": 2}}, {\"action\": \"extrude_last_profile\", \"params\": {\"distance\": 2, \"operation\": \"NewBody\"}}, {\"action\": \"create_hole\", \"params\": {\"diameter\": 1, \"depth\": 2, \"x\": 0, \"y\": 0, \"z\": 2, \"hole_type\": \"simple\"}}], \"requires_confirmation\": true}"
+    },
+    {
+      "role": "user",
+      "content": "OK to proceed"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"executing\", \"assistant_message\": \"Executing the creation of a 4cm x 4cm x 2cm block with a 1cm hole in the center.\", \"questions\": [], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    },
+    {
+      "role": "user",
+      "content": "{\"ok\": true, \"details\": \"All actions executed successfully.\"}"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"done\", \"assistant_message\": \"The 4cm x 4cm x 2cm block with a 1cm diameter hole in the center has been successfully created.\", \"questions\": [], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    }
+  ]
+}

@@ -12,6 +12,7 @@ import json
 import uuid
 import os
 import sys
+import threading
 from pathlib import Path
 
 # Add current directory to Python path for imports
@@ -340,6 +341,8 @@ class FusionActionExecutor:
                 action_name = action.get("action")
                 params = action.get("params", {})
                 
+                send_debug_message(f"Processing action {idx}: {action_name}")
+                
                 if action_name == "create_sketch":
                     success = self._create_sketch(params, sketch_context, idx)
                     if success:
@@ -373,6 +376,13 @@ class FusionActionExecutor:
                 
                 elif action_name == "add_text":
                     success = self._add_text(params)
+                    if success:
+                        made_geometry = True
+                
+                elif action_name == "create_hole":
+                    send_debug_message(f"About to create hole with params: {params}")
+                    success = self._create_hole(params)
+                    send_debug_message(f"Hole creation result: {success}")
                     if success:
                         made_geometry = True
             
@@ -532,6 +542,154 @@ class FusionActionExecutor:
         _state.last_sketch = sketch
         return True
     
+    def _create_hole(self, params: dict) -> bool:
+        """Create a hole feature using the correct Fusion 360 API"""
+        try:
+            # Show immediate popup to confirm hole creation is starting
+            ui = adsk.core.Application.get().userInterface
+            ui.messageBox("HOLE CREATION STARTING!", "Hole Debug")
+            
+            send_debug_message("Starting hole creation...")
+            
+            # Get parameters
+            diameter = float(params.get("diameter", 1.0))
+            depth = float(params.get("depth", 1.0))
+            x = float(params.get("x", 0.0))
+            y = float(params.get("y", 0.0))
+            z = float(params.get("z", 0.0))
+            hole_type = params.get("hole_type", "simple")  # simple, counterbore, countersink
+            
+            send_debug_message(f"Hole params: diameter={diameter}, depth={depth}, pos=({x},{y},{z}), type={hole_type}")
+            
+            # Validate parameters
+            if diameter <= 0 or depth <= 0:
+                send_debug_message(f"Invalid hole parameters: diameter={diameter}, depth={depth}. Both must be positive.")
+                return False
+            
+            # Get the target face (default to top face of first body)
+            target_face = self._get_target_face_for_hole(x, y, z)
+            if not target_face:
+                send_debug_message("No suitable face found for hole. Make sure you have a solid body.")
+                return False
+            
+            # Create hole feature using the correct API based on the documentation
+            send_debug_message("Creating sketch for hole center point")
+            
+            # Create a sketch on the target face (or a construction plane at the target Z level)
+            # Get the top face Z coordinate
+            top_face_z = target_face.boundingBox.maxPoint.z
+            
+            # Create a construction plane at the target Z level
+            planes = self.root.constructionPlanes
+            plane_input = planes.createInput()
+            offset_val = adsk.core.ValueInput.createByReal(top_face_z)
+            plane_input.setByOffset(self.root.xYConstructionPlane, offset_val)
+            target_plane = planes.add(plane_input)
+            
+            # Create a sketch on the target plane
+            sketch = self.root.sketches.add(target_plane)
+            
+            # Add a point at the specified position
+            center_point = sketch.sketchPoints.add(adsk.core.Point3D.create(x, y, 0))
+            
+            # Create the hole feature using the correct API
+            hole_feats = self.root.features.holeFeatures
+            
+            send_debug_message("Creating hole using correct API")
+            
+            # Create hole input using the correct method from documentation
+            # Create an ObjectCollection for the sketch points
+            pt_coll = adsk.core.ObjectCollection.create()
+            pt_coll.add(center_point)
+            
+            if hole_type == "simple":
+                # Simple hole using createSimpleInput
+                hole_input = hole_feats.createSimpleInput(adsk.core.ValueInput.createByReal(diameter))
+                hole_input.setPositionBySketchPoints(pt_coll)
+                hole_input.setDistanceExtent(adsk.core.ValueInput.createByReal(depth))
+            
+            elif hole_type == "counterbore":
+                # Counterbore hole
+                counterbore_diameter = float(params.get("counterbore_diameter", diameter * 1.5))
+                counterbore_depth = float(params.get("counterbore_depth", depth * 0.3))
+                
+                hole_input = hole_feats.createCounterboreInput(
+                    adsk.core.ValueInput.createByReal(diameter),
+                    adsk.core.ValueInput.createByReal(counterbore_diameter),
+                    adsk.core.ValueInput.createByReal(counterbore_depth)
+                )
+                hole_input.setPositionBySketchPoints(pt_coll)
+                hole_input.setDistanceExtent(adsk.core.ValueInput.createByReal(depth))
+            
+            elif hole_type == "countersink":
+                # Countersink hole
+                countersink_diameter = float(params.get("countersink_diameter", diameter * 1.8))
+                countersink_angle = float(params.get("countersink_angle", 82.0))  # Standard 82° angle
+                
+                hole_input = hole_feats.createCountersinkInput(
+                    adsk.core.ValueInput.createByReal(diameter),
+                    adsk.core.ValueInput.createByReal(countersink_diameter),
+                    adsk.core.ValueInput.createByReal(countersink_angle)
+                )
+                hole_input.setPositionBySketchPoints(pt_coll)
+                hole_input.setDistanceExtent(adsk.core.ValueInput.createByReal(depth))
+            
+            # Create the hole feature
+            send_debug_message("Adding hole feature to design...")
+            
+            hole_feat = hole_feats.add(hole_input)
+            
+            if hole_feat:
+                send_debug_message(f"Successfully created {hole_type} hole: diameter={diameter}cm, depth={depth}cm at ({x},{y},{z})")
+                ui.messageBox(f"HOLE CREATED SUCCESSFULLY! Type: {hole_type}, Diameter: {diameter}cm", "Hole Success")
+                return True
+            else:
+                send_debug_message("Failed to create hole feature")
+                ui.messageBox("HOLE CREATION FAILED!", "Hole Error")
+                return False
+                
+        except Exception as e:
+            send_debug_message(f"Hole error: {str(e)}")
+            ui.messageBox(f"HOLE CREATION EXCEPTION: {str(e)}", "Hole Exception")
+            return False
+    
+    def _get_target_face_for_hole(self, x: float, y: float, z: float) -> adsk.fusion.BRepFace:
+        """Get the best target face for hole creation"""
+        try:
+            # Get all bodies in the design
+            bodies = self.root.bRepBodies
+            
+            if bodies.count == 0:
+                send_debug_message("No bodies found in design")
+                return None
+            
+            # Use the first body
+            body = bodies.item(0)
+            faces = body.faces
+            
+            send_debug_message(f"Found {faces.count} faces on body")
+            
+            # Find the top face (highest Z value)
+            top_face = None
+            max_z = -999999
+            
+            for i in range(faces.count):
+                face = faces.item(i)
+                face_z = face.boundingBox.maxPoint.z
+                if face_z > max_z:
+                    max_z = face_z
+                    top_face = face
+                
+                send_debug_message(f"Face {i}: Z range {face.boundingBox.minPoint.z:.3f} to {face.boundingBox.maxPoint.z:.3f}")
+            
+            send_debug_message(f"Selected top face at Z={max_z:.3f}")
+            
+            return top_face
+            
+        except Exception as e:
+            send_debug_message(f"Error finding target face: {str(e)}")
+            return None
+    
     def _create_fallback_sketch(self):
         """Create a fallback sketch if none exists"""
         if _state.last_sketch:
@@ -598,88 +756,131 @@ class FusionActionExecutor:
 # ============================================================
 
 def handle_agent_event(event: str, user_message: str):
-    """Main event handler for agent communication"""
+    """Main event handler for agent communication - runs synchronously for debugging"""
+    # For debugging, run synchronously to see what's happening
+    _handle_agent_event_async(event, user_message)
+
+def _handle_agent_event_async(event: str, user_message: str):
+    """Asynchronous agent event handler"""
     global _state
     
-    # Get agent response
-    reply = AgentCommunicator.call_agent(event, user_message)
-    send_to_html(reply)
-    
-    # Cache actions if present
-    if isinstance(reply.get("actions"), list) and reply["actions"]:
-        _state.last_actions = reply["actions"]
-    
-    # Handle execution confirmation
-    if event == "confirm_execute":
-        actions = reply.get("actions") or _state.last_actions or []
+    try:
+        # Get agent response
+        reply = AgentCommunicator.call_agent(event, user_message)
+        send_to_html(reply)
         
-        if not actions:
-            # Try to force action generation with a more specific prompt
-            force_payload = {
-                "event": "force_actions", 
-                "user_message": f"Generate executable Fusion actions for: {user_message}. Use default values: plane=XY, position=(0,0), size=2cm if not specified."
-            }
-            force_reply = AgentCommunicator.call_agent("force_actions", force_payload["user_message"])
+        # Cache actions if present
+        if isinstance(reply.get("actions"), list) and reply["actions"]:
+            _state.last_actions = reply["actions"]
+        
+        # Handle execution confirmation
+        if event == "confirm_execute":
+            actions = reply.get("actions") or _state.last_actions or []
             
-            if isinstance(force_reply.get("actions"), list) and force_reply["actions"]:
-                actions = force_reply["actions"]
-                _state.last_actions = actions
+            # Show debug messages in main thread
+            if DEBUG:
                 send_to_html({
-                    "status": "ready_to_execute",
-                    "assistant_message": "Generated actions from your request. Executing now.",
-                    "questions": [], "plan": [], "actions": actions,
-                    "requires_confirmation": True
+                    "assistant_message": f"DEBUG: About to execute {len(actions)} actions",
+                    "questions": [], "plan": [], "actions": []
                 })
-            else:
-                # Still no actions - create default actions based on user input
-                default_actions = []
-                user_lower = user_message.lower()
+                for i, action in enumerate(actions):
+                    send_to_html({
+                        "assistant_message": f"DEBUG: Action {i}: {action.get('action')} - {action.get('params')}",
+                        "questions": [], "plan": [], "actions": []
+                    })
+            
+            if not actions:
+                # Try to force action generation with a more specific prompt
+                force_payload = {
+                    "event": "force_actions", 
+                    "user_message": f"Generate executable Fusion actions for: {user_message}. Use default values: plane=XY, position=(0,0), size=2cm if not specified."
+                }
+                force_reply = AgentCommunicator.call_agent("force_actions", force_payload["user_message"])
                 
-                if "square" in user_lower or "rectangle" in user_lower:
-                    default_actions = [
-                        {"action": "create_sketch", "params": {"plane": "XY"}},
-                        {"action": "add_rectangle", "params": {"sketch_id": "sk_0", "x1": -1, "y1": -1, "x2": 1, "y2": 1}}
-                    ]
-                elif "circle" in user_lower:
-                    default_actions = [
-                        {"action": "create_sketch", "params": {"plane": "XY"}},
-                        {"action": "add_circle", "params": {"sketch_id": "sk_0", "cx": 0, "cy": 0, "r": 1}}
-                    ]
-                
-                if default_actions:
-                    actions = default_actions
+                if isinstance(force_reply.get("actions"), list) and force_reply["actions"]:
+                    actions = force_reply["actions"]
                     _state.last_actions = actions
                     send_to_html({
                         "status": "ready_to_execute",
-                        "assistant_message": "Using default actions based on your request. Executing now.",
+                        "assistant_message": "Generated actions from your request. Executing now.",
                         "questions": [], "plan": [], "actions": actions,
                         "requires_confirmation": True
                     })
                 else:
-                    # Still no actions - ask for clarification
+                    # Still no actions - create default actions based on user input
+                    default_actions = []
+                    user_lower = user_message.lower()
+                    
+                    if "square" in user_lower or "rectangle" in user_lower:
+                        default_actions = [
+                            {"action": "create_sketch", "params": {"plane": "XY"}},
+                            {"action": "add_rectangle", "params": {"sketch_id": "sk_0", "x1": -1, "y1": -1, "x2": 1, "y2": 1}}
+                        ]
+                    elif "circle" in user_lower:
+                        default_actions = [
+                            {"action": "create_sketch", "params": {"plane": "XY"}},
+                            {"action": "add_circle", "params": {"sketch_id": "sk_0", "cx": 0, "cy": 0, "r": 1}}
+                        ]
+                    
+                    if default_actions:
+                        actions = default_actions
+                        _state.last_actions = actions
+                        send_to_html({
+                            "status": "ready_to_execute",
+                            "assistant_message": "Using default actions based on your request. Executing now.",
+                            "questions": [], "plan": [], "actions": actions,
+                            "requires_confirmation": True
+                        })
+                    else:
+                        # Still no actions - ask for clarification
+                        send_to_html({
+                            "status": "need_clarification",
+                            "assistant_message": "I couldn't generate actions. Please be more specific about what you want to create.",
+                            "questions": [
+                                "What shape do you want to create (square, circle, rectangle)?",
+                                "What size (e.g., 2cm, 20mm)?",
+                                "Which plane (XY, YZ, XZ)?"
+                            ],
+                            "plan": [], "actions": [], "requires_confirmation": False
+                        })
+                        return
+            
+            # Execute actions
+            try:
+                # Show immediate popup to confirm execution is starting
+                ui = adsk.core.Application.get().userInterface
+                ui.messageBox(f"Starting execution of {len(actions)} actions", "Execution Start")
+                
+                executor = FusionActionExecutor()
+                success, details = executor.execute_actions(actions)
+                
+                # Show immediate popup with result
+                ui.messageBox(f"Execution completed: success={success}, details={details}", "Execution Result")
+                
+                if DEBUG:
                     send_to_html({
-                        "status": "need_clarification",
-                        "assistant_message": "I couldn't generate actions. Please be more specific about what you want to create.",
-                        "questions": [
-                            "What shape do you want to create (square, circle, rectangle)?",
-                            "What size (e.g., 2cm, 20mm)?",
-                            "Which plane (XY, YZ, XZ)?"
-                        ],
-                        "plan": [], "actions": [], "requires_confirmation": False
+                        "assistant_message": f"DEBUG: Execution result: success={success}, details={details}",
+                        "questions": [], "plan": [], "actions": []
                     })
-                    return
-        
-        # Execute actions
-        try:
-            executor = FusionActionExecutor()
-            success, details = executor.execute_actions(actions)
-        except Exception as e:
-            success, details = False, f"Failed to create executor: {e}"
-        
-        # Report execution result
-        result_msg = json.dumps({"ok": success, "details": details})
-        final_reply = AgentCommunicator.call_agent("execution_result", result_msg)
-        send_to_html(final_reply)
+            except Exception as e:
+                success, details = False, f"Failed to create executor: {e}"
+                ui.messageBox(f"Execution failed: {e}", "Execution Error")
+                if DEBUG:
+                    send_to_html({
+                        "assistant_message": f"DEBUG: Execution exception: {e}",
+                        "questions": [], "plan": [], "actions": []
+                    })
+            
+            # Report execution result
+            result_msg = json.dumps({"ok": success, "details": details})
+            final_reply = AgentCommunicator.call_agent("execution_result", result_msg)
+            send_to_html(final_reply)
+            
+    except Exception as e:
+        send_to_html({
+            "status": "need_clarification",
+            "assistant_message": f"Agent processing error: {e}"
+        })
 
 # ============================================================
 # Utility Functions
@@ -695,6 +896,14 @@ def send_to_html(payload: dict):
     except:
         # Swallow errors to prevent UI crashes
         pass
+
+def send_debug_message(message: str):
+    """Send a debug message to the HTML palette"""
+    if DEBUG:
+        send_to_html({
+            "assistant_message": f"DEBUG: {message}",
+            "questions": [], "plan": [], "actions": []
+        })
 
 # ============================================================
 # Add-in Entry Points

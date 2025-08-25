@@ -1,0 +1,109 @@
+{
+  "session_id": "0c51f1a0-1ef8-415a-9cd9-1c02a2fd1d10",
+  "history": [
+    {
+      "role": "user",
+      "content": "make a square in the XY plane"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"need_clarification\", \"assistant_message\": \"I need to know the size of the square to proceed.\", \"questions\": [\"What size should the square be?\"], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    },
+    {
+      "role": "user",
+      "content": "20 mm sides"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"ready_to_execute\", \"assistant_message\": \"I will create a 2cm square centered at origin on XY plane.\", \"questions\": [], \"plan\": [\"1. Create sketch on XY plane\", \"2. Add 2cm square centered at origin\"], \"actions\": [{\"action\": \"create_sketch\", \"params\": {\"plane\": \"XY\"}}, {\"action\": \"add_rectangle\", \"params\": {\"sketch_id\": \"sk_0\", \"x1\": -1, \"y1\": -1, \"x2\": 1, \"y2\": 1}}], \"requires_confirmation\": true}"
+    },
+    {
+      "role": "user",
+      "content": "OK to proceed"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"executing\", \"assistant_message\": \"Executing the creation of a 2cm square on the XY plane.\", \"questions\": [], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    },
+    {
+      "role": "user",
+      "content": "{\"ok\": true, \"details\": \"All actions executed successfully.\"}"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"done\", \"assistant_message\": \"The 2cm square has been successfully created on the XY plane.\", \"questions\": [], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    },
+    {
+      "role": "user",
+      "content": "extrude this by 30 mm"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"ready_to_execute\", \"assistant_message\": \"I will extrude the square by 3cm to create a new body.\", \"questions\": [], \"plan\": [\"1. Extrude the last profile by 3cm\"], \"actions\": [{\"action\": \"extrude_last_profile\", \"params\": {\"distance\": 3, \"operation\": \"NewBody\"}}], \"requires_confirmation\": true}"
+    },
+    {
+      "role": "user",
+      "content": "OK to proceed"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"executing\", \"assistant_message\": \"Extruding the square by 3cm to create a new body.\", \"questions\": [], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    },
+    {
+      "role": "user",
+      "content": "{\"ok\": true, \"details\": \"All actions executed successfully.\"}"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"done\", \"assistant_message\": \"The square has been successfully extruded by 3cm, creating a new body.\", \"questions\": [], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    },
+    {
+      "role": "user",
+      "content": "make a cylinder of height 30 mm and radius 20 mm"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"ready_to_execute\", \"assistant_message\": \"I will create a cylinder with a radius of 2cm and a height of 3cm on the XY plane.\", \"questions\": [], \"plan\": [\"1. Create a sketch on the XY plane\", \"2. Add a circle with a radius of 2cm centered at the origin\", \"3. Extrude the circle by 3cm to form a cylinder\"], \"actions\": [{\"action\": \"create_sketch\", \"params\": {\"plane\": \"XY\"}}, {\"action\": \"add_circle\", \"params\": {\"sketch_id\": \"sk_1\", \"cx\": 0, \"cy\": 0, \"r\": 2}}, {\"action\": \"extrude_last_profile\", \"params\": {\"distance\": 3, \"operation\": \"NewBody\"}}], \"requires_confirmation\": true}"
+    },
+    {
+      "role": "user",
+      "content": "OK to proceed"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"executing\", \"assistant_message\": \"Creating a cylinder with a radius of 2cm and a height of 3cm.\", \"questions\": [], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    },
+    {
+      "role": "user",
+      "content": "{\"ok\": true, \"details\": \"All actions executed successfully.\"}"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"done\", \"assistant_message\": \"The cylinder with a radius of 2cm and a height of 3cm has been successfully created.\", \"questions\": [], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    },
+    {
+      "role": "user",
+      "content": "make a cube of side 40 mm"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"ready_to_execute\", \"assistant_message\": \"I will create a cube with 4cm sides centered at the origin on the XY plane.\", \"questions\": [], \"plan\": [\"1. Create a sketch on the XY plane\", \"2. Add a 4cm square centered at the origin\", \"3. Extrude the square by 4cm to form a cube\"], \"actions\": [{\"action\": \"create_sketch\", \"params\": {\"plane\": \"XY\"}}, {\"action\": \"add_rectangle\", \"params\": {\"sketch_id\": \"sk_2\", \"x1\": -2, \"y1\": -2, \"x2\": 2, \"y2\": 2}}, {\"action\": \"extrude_last_profile\", \"params\": {\"distance\": 4, \"operation\": \"NewBody\"}}], \"requires_confirmation\": true}"
+    },
+    {
+      "role": "user",
+      "content": "OK to proceed"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"executing\", \"assistant_message\": \"Creating a cube with 4cm sides.\", \"questions\": [], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    },
+    {
+      "role": "user",
+      "content": "{\"ok\": true, \"details\": \"All actions executed successfully.\"}"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"done\", \"assistant_message\": \"The cube with 4cm sides has been successfully created.\", \"questions\": [], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    }
+  ]
+}

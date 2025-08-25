@@ -1,0 +1,13 @@
+{
+  "session_id": "96c3894c-f6bd-4906-a8aa-d8a7a9eb18dc",
+  "history": [
+    {
+      "role": "user",
+      "content": "make a square of side 20mm"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"need_clarification\", \"assistant_message\": \"Please specify the plane for the square.\", \"questions\": [\"On which plane would you like to create the square?\"], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    }
+  ]
+}

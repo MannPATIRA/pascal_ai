@@ -64,6 +64,7 @@ ALLOWED ACTIONS (exact names & params):
 - add_circle(sketch_id: string, cx:number, cy:number, r:number)
 - extrude_last_profile(distance:number, operation:'NewBody'|'Cut'|'Join')
 - add_text(plane:'XY'|'YZ'|'XZ', text:string, height:number, x:number, y:number)
+- create_hole(diameter:number, depth:number, x:number, y:number, z:number, hole_type:'simple'|'counterbore'|'countersink')
 
 UNITS: centimeters for sketch coordinates, text height, and extrude distance.
 STRICT OUTPUT: Return ONE JSON object only with keys:

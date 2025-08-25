@@ -10,7 +10,7 @@ from pathlib import Path
 # ============================================================
 
 # Debug mode - set to False for production
-DEBUG = True
+DEBUG = False
 
 # Add-in identification
 ADDIN_NAME = os.path.basename(os.path.dirname(__file__))

@@ -45,7 +45,8 @@ class Action(BaseModel):
         "add_rectangle", 
         "add_circle",
         "extrude_last_profile",
-        "add_text"
+        "add_text",
+        "create_hole"
     ]
     params: Dict[str, Any]
 
@@ -91,6 +92,7 @@ ALLOWED ACTIONS:
 - add_circle(sketch_id: string, cx:number, cy:number, r:number)
 - extrude_last_profile(distance:number, operation:'NewBody'|'Cut'|'Join')
 - add_text(plane:'XY'|'YZ'|'XZ', text:string, height:number, x:number, y:number)
+- create_hole(diameter:number, depth:number, x:number, y:number, z:number, hole_type:'simple'|'counterbore'|'countersink')
 
 UNITS & CONVENTIONS:
 - Use centimeters for all distances
@@ -103,6 +105,14 @@ EXTRUDE NOTES:
 - Always use "NewBody" operation unless specifically cutting or joining
 - The profile must be from a closed sketch (rectangle, circle, etc.)
 - Distance must be positive and in centimeters
+
+HOLE NOTES:
+- create_hole requires an existing solid body to cut into
+- diameter and depth must be positive and in centimeters
+- hole_type options: "simple" (default), "counterbore", "countersink"
+- For counterbore: counterbore_diameter and counterbore_depth are optional (auto-calculated)
+- For countersink: countersink_diameter and countersink_angle are optional (auto-calculated)
+- Position (x,y,z) should be on a face of an existing body
 
 OUTPUT FORMAT:
 Return ONLY a JSON object with keys:

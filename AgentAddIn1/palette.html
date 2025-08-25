@@ -191,11 +191,67 @@
             overflow-y: auto;
         }
         
-        .typing-indicator {
-            display: none;
-            padding: 8px 12px;
-            color: #666;
-            font-style: italic;
+                 .typing-indicator {
+             display: none; /* Hide by default */
+             padding: 12px 16px;
+             color: #666;
+             font-style: italic;
+             background: var(--assistant-bubble-bg);
+             border-radius: 8px;
+             margin: 8px 0;
+             border-bottom-left-radius: 4px;
+         }
+        
+        /* ChatGPT-style thinking animation */
+        .thinking-dots {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-left: 8px;
+        }
+        
+                 .thinking-dot {
+             width: 14px;
+             height: 14px;
+             border-radius: 50%;
+             background-color: #0078d4;
+             box-shadow: 0 0 4px rgba(0, 120, 212, 0.3);
+             /* No default animation - we'll set it when needed */
+             animation: none;
+         }
+        
+        @keyframes thinking-pulse {
+            0%, 100% {
+                transform: scale(0.5);
+                opacity: 0.2;
+            }
+            50% {
+                transform: scale(1.5);
+                opacity: 1;
+            }
+        }
+        
+        /* Disabled state styling */
+        .input-container.disabled .message-input {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+        
+        .input-container.disabled .btn-primary {
+            background: #ccc !important;
+            cursor: not-allowed !important;
+            opacity: 0.6 !important;
+        }
+        
+        .input-container.disabled .btn-primary:hover {
+            background: #ccc !important;
+        }
+        
+        /* Additional disabled button styles */
+        .btn-primary:disabled {
+            background: #ccc !important;
+            cursor: not-allowed !important;
+            opacity: 0.6 !important;
         }
     </style>
 </head>
@@ -208,7 +264,14 @@
     <h3 class="title">PASCAL Agent</h3>
     
     <div class="chat-container" id="chatContainer">
-        <div class="typing-indicator" id="typingIndicator">Agent is thinking...</div>
+        <div class="typing-indicator" id="typingIndicator">
+            Agent is thinking
+            <div class="thinking-dots">
+                <div class="thinking-dot"></div>
+                <div class="thinking-dot"></div>
+                <div class="thinking-dot"></div>
+            </div>
+        </div>
     </div>
     
     <div class="input-container">
@@ -230,6 +293,13 @@
         When a plan appears and actions are listed, click "Proceed & Execute". 
         Typing "yes" only approves the plan.
     </small>
+    
+         <!-- Test buttons -->
+     <div style="margin-top: 8px; display: flex; gap: 8px;">
+         <button id="testAnimation" style="padding: 4px 8px; font-size: 12px;">Test Animation</button>
+         <button id="testAlert" style="padding: 4px 8px; font-size: 12px;">Test Alert</button>
+         <button id="testConsole" style="padding: 4px 8px; font-size: 12px;">Test Console</button>
+     </div>
 
     <script>
         // ============================================================
@@ -241,9 +311,12 @@
         const sendButton = document.getElementById('sendButton');
         const confirmBar = document.getElementById('confirmBar');
         const confirmButton = document.getElementById('confirmButton');
-        const statusDot = document.getElementById('statusDot');
-        const statusText = document.getElementById('statusText');
-        const typingIndicator = document.getElementById('typingIndicator');
+                 const statusDot = document.getElementById('statusDot');
+         const statusText = document.getElementById('statusText');
+         const typingIndicator = document.getElementById('typingIndicator');
+         const testAnimationBtn = document.getElementById('testAnimation');
+         const testAlertBtn = document.getElementById('testAlert');
+         const testConsoleBtn = document.getElementById('testConsole');
         
         // ============================================================
         // Connection Management
@@ -310,10 +383,40 @@
             scrollToBottom();
         }
         
-        function showTypingIndicator() {
-            typingIndicator.style.display = 'block';
-            scrollToBottom();
-        }
+                 function showTypingIndicator() {
+             console.log('Showing typing indicator');
+             console.log('typingIndicator found:', !!typingIndicator);
+             
+             // Show the indicator immediately
+             typingIndicator.style.display = 'block';
+             
+             // Get all dots
+             const dots = typingIndicator.querySelectorAll('.thinking-dot');
+             console.log('Found', dots.length, 'thinking dots');
+             
+             // Force immediate visibility and reset
+             dots.forEach((dot, index) => {
+                 // Make sure dot is visible
+                 dot.style.display = 'block';
+                 dot.style.opacity = '1';
+                 dot.style.transform = 'scale(1)';
+                 dot.style.animation = 'none';
+                 console.log('Reset dot', index);
+             });
+             
+             // Force browser reflow
+             typingIndicator.offsetHeight;
+             
+             // Start animations with staggered delays
+             dots.forEach((dot, index) => {
+                 const delay = index * 0.2;
+                 const animation = `thinking-pulse 1.4s ease-in-out ${delay}s infinite both`;
+                 dot.style.animation = animation;
+                 console.log('Started animation for dot', index, 'with delay', delay);
+             });
+             
+             scrollToBottom();
+         }
         
         function hideTypingIndicator() {
             typingIndicator.style.display = 'none';
@@ -327,38 +430,67 @@
         // Communication
         // ============================================================
         
-        function sendMessage() {
-            const text = messageInput.value.trim();
-            if (!text) return;
+        function setThinkingState(isThinking) {
+            const inputContainer = document.querySelector('.input-container');
+            console.log('setThinkingState called with:', isThinking);
+            console.log('inputContainer found:', !!inputContainer);
+            console.log('sendButton found:', !!sendButton);
             
-            // Add user message to chat
-            addMessage(text, 'user');
-            messageInput.value = '';
-            
-            // Show typing indicator
-            showTypingIndicator();
-            
-            // Prepare payload
-            const payload = { 
-                event: 'user_message', 
-                user_message: text 
-            };
-            
-            // Send to Fusion
-            if (!checkFusionConnection()) {
-                addMessage('Send failed: Fusion API not available in this palette.', 'assistant', 'error');
-                hideTypingIndicator();
-                return;
-            }
-            
-            try {
-                addMessage('↗ sending: ' + JSON.stringify(payload), 'assistant');
-                adsk.fusionSendData('agent_event', JSON.stringify(payload));
-            } catch (e) {
-                addMessage('Send exception: ' + e.toString(), 'assistant', 'error');
+            if (isThinking) {
+                console.log('Setting thinking state: TRUE');
+                inputContainer.classList.add('disabled');
+                sendButton.disabled = true;
+                console.log('Button disabled:', sendButton.disabled);
+                console.log('Container has disabled class:', inputContainer.classList.contains('disabled'));
+                showTypingIndicator();
+            } else {
+                console.log('Setting thinking state: FALSE');
+                inputContainer.classList.remove('disabled');
+                sendButton.disabled = false;
                 hideTypingIndicator();
             }
         }
+        
+                                   function sendMessage() {
+             console.log('sendMessage() called!');
+             
+             const text = messageInput.value.trim();
+             if (!text) return;
+             
+             // Add user message to chat
+             addMessage(text, 'user');
+             messageInput.value = '';
+             
+             // Prepare payload
+             const payload = { 
+                 event: 'user_message', 
+                 user_message: text 
+             };
+             
+             // Send to Fusion ASYNCHRONOUSLY
+             if (!checkFusionConnection()) {
+                 addMessage('Send failed: Fusion API not available in this palette.', 'assistant', 'error');
+                 // Stop animation and re-enable button
+                 typingIndicator.style.display = 'none';
+                 sendButton.disabled = false;
+                 sendButton.style.background = '';
+                 return;
+             }
+             
+             // Use setTimeout to make the API call asynchronous
+             setTimeout(() => {
+                 try {
+                     addMessage('↗ sending: ' + JSON.stringify(payload), 'assistant');
+                     adsk.fusionSendData('agent_event', JSON.stringify(payload));
+                 } catch (e) {
+                     addMessage('Send exception: ' + e.toString(), 'assistant', 'error');
+                     // Stop animation and re-enable button
+                     typingIndicator.style.display = 'none';
+                     sendButton.disabled = false;
+                     sendButton.style.background = '';
+                 }
+             }, 10); // Small delay to allow UI to update
+         }
         
         function confirmExecution() {
             const payload = { 
@@ -366,24 +498,48 @@
                 user_message: 'OK to proceed' 
             };
             
+            // Set thinking state
+            setThinkingState(true);
+            
             if (!checkFusionConnection()) {
                 addMessage('Confirm failed: Fusion API not available in this palette.', 'assistant', 'error');
+                setThinkingState(false);
                 return;
             }
             
-            try {
-                addMessage('↗ sending confirm: ' + JSON.stringify(payload), 'assistant');
-                adsk.fusionSendData('agent_event', JSON.stringify(payload));
-            } catch (e) {
-                addMessage('Confirm exception: ' + e.toString(), 'assistant', 'error');
-            }
+            // Use setTimeout to make the API call asynchronous
+            setTimeout(() => {
+                try {
+                    addMessage('↗ sending confirm: ' + JSON.stringify(payload), 'assistant');
+                    adsk.fusionSendData('agent_event', JSON.stringify(payload));
+                } catch (e) {
+                    addMessage('Confirm exception: ' + e.toString(), 'assistant', 'error');
+                    setThinkingState(false);
+                }
+            }, 10); // Small delay to allow UI to update
         }
         
         // ============================================================
         // Event Handlers
         // ============================================================
         
-        sendButton.addEventListener('click', sendMessage);
+                 sendButton.addEventListener('click', () => {
+             console.log('Send button clicked!');
+             
+             // SIMPLE: Show animation and disable button immediately
+             typingIndicator.style.display = 'block';
+             sendButton.disabled = true;
+             sendButton.style.background = '#ccc';
+             
+             // Start the animation
+             const dots = typingIndicator.querySelectorAll('.thinking-dot');
+             dots.forEach((dot, index) => {
+                 dot.style.animation = `thinking-pulse 1.4s ease-in-out ${index * 0.2}s infinite`;
+             });
+             
+             // Call send function
+             sendMessage();
+         });
         
         messageInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
@@ -393,55 +549,91 @@
         
         confirmButton.addEventListener('click', confirmExecution);
         
+                 // Test buttons
+         testAnimationBtn.addEventListener('click', () => {
+             console.log('Test Animation button clicked!');
+             alert('Test Animation button clicked!');
+             
+             // Simple direct animation test
+             console.log('Starting direct animation test...');
+             showTypingIndicator();
+             
+             setTimeout(() => {
+                 console.log('Stopping animation test...');
+                 hideTypingIndicator();
+             }, 3000); // Show for 3 seconds
+         });
+         
+         testAlertBtn.addEventListener('click', () => {
+             console.log('Test Alert button clicked!');
+             alert('Test Alert button clicked! This proves JavaScript is working.');
+         });
+         
+         testConsoleBtn.addEventListener('click', () => {
+             console.log('Test Console button clicked!');
+             console.log('sendButton:', sendButton);
+             console.log('typingIndicator:', typingIndicator);
+             console.log('inputContainer:', document.querySelector('.input-container'));
+             alert('Check console for debug info!');
+         });
+        
         // ============================================================
         // Fusion Communication Handler
         // ============================================================
         
-        window.fusionJavaScriptHandler = {
-            handle: function(action, data) {
-                try {
-                    if (action !== 'agent_reply') return 'IGNORED';
-                    
-                    // Hide typing indicator
-                    hideTypingIndicator();
-                    
-                    const response = JSON.parse(data);
-                    
-                    // Display response components
-                    if (response.assistant_message) {
-                        addMessage(response.assistant_message, 'assistant');
-                    }
-                    
-                    if (Array.isArray(response.questions) && response.questions.length) {
-                        addList(response.questions, false);
-                    }
-                    
-                    if (Array.isArray(response.plan) && response.plan.length) {
-                        addList(response.plan, true);
-                    }
-                    
-                    if (Array.isArray(response.actions) && response.actions.length) {
-                        addActionsPreview(response.actions);
-                    }
-                    
-                    // Show/hide confirm button
-                    const hasActions = Array.isArray(response.actions) && response.actions.length > 0;
-                    const shouldShowConfirm = response.status === 'ready_to_execute' || hasActions;
-                    confirmBar.style.display = shouldShowConfirm ? 'block' : 'none';
-                    
-                    return 'OK';
-                    
-                } catch (e) {
-                    hideTypingIndicator();
-                    addMessage('HTML handler exception: ' + e.toString(), 'assistant', 'error');
-                    return 'Exception: ' + e.toString();
-                }
-            }
-        };
+                 window.fusionJavaScriptHandler = {
+             handle: function(action, data) {
+                 try {
+                     if (action !== 'agent_reply') return 'IGNORED';
+                     
+                     // Stop animation and re-enable button
+                     typingIndicator.style.display = 'none';
+                     sendButton.disabled = false;
+                     sendButton.style.background = '';
+                     
+                     const response = JSON.parse(data);
+                     
+                     // Display response components
+                     if (response.assistant_message) {
+                         addMessage(response.assistant_message, 'assistant');
+                     }
+                     
+                     if (Array.isArray(response.questions) && response.questions.length) {
+                         addList(response.questions, false);
+                     }
+                     
+                     if (Array.isArray(response.plan) && response.plan.length) {
+                         addList(response.plan, true);
+                     }
+                     
+                     if (Array.isArray(response.actions) && response.actions.length) {
+                         addActionsPreview(response.actions);
+                     }
+                     
+                     // Show/hide confirm button
+                     const hasActions = Array.isArray(response.actions) && response.actions.length > 0;
+                     const shouldShowConfirm = response.status === 'ready_to_execute' || hasActions;
+                     confirmBar.style.display = shouldShowConfirm ? 'block' : 'none';
+                     
+                     return 'OK';
+                     
+                 } catch (e) {
+                     // Stop animation and re-enable button on error
+                     typingIndicator.style.display = 'none';
+                     sendButton.disabled = false;
+                     sendButton.style.background = '';
+                     addMessage('HTML handler exception: ' + e.toString(), 'assistant', 'error');
+                     return 'Exception: ' + e.toString();
+                 }
+             }
+         };
         
         // ============================================================
         // Initialization
         // ============================================================
+        
+                 // Test that JavaScript is running
+         console.log('PASCAL Agent HTML loaded successfully!');
         
         // Check initial connection
         checkFusionConnection();

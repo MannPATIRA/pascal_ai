@@ -1,0 +1,13 @@
+{
+  "session_id": "28b7f4fb-b179-4e3e-9fba-93e3ca030dd7",
+  "history": [
+    {
+      "role": "user",
+      "content": "create a square of side 20 mm"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"need_clarification\", \"assistant_message\": \"Please specify the plane for the square creation.\", \"questions\": [\"On which plane would you like to create the square?\"], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    }
+  ]
+}

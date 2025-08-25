@@ -1,0 +1,13 @@
+{
+  "session_id": "f68bfc84-59cd-4989-8657-d6a8bb5158f6",
+  "history": [
+    {
+      "role": "user",
+      "content": "square of side 20 m"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"need_clarification\", \"assistant_message\": \"I need to know the plane on which to create the 20m square.\", \"questions\": [\"On which plane should the square be created?\"], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    }
+  ]
+}

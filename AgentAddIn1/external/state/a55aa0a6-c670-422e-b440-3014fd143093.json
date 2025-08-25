@@ -1,0 +1,29 @@
+{
+  "session_id": "a55aa0a6-c670-422e-b440-3014fd143093",
+  "history": [
+    {
+      "role": "user",
+      "content": "create a cylinder of radius 20 mm on the YZ plane that is 50 mm to the right of the origin"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"ready_to_execute\", \"assistant_message\": \"I will create a cylinder with a radius of 2cm on the YZ plane, positioned 5cm to the right of the origin, and extrude it to form a cylinder.\", \"questions\": [], \"plan\": [\"1. Create a sketch on the YZ plane.\", \"2. Add a circle with a radius of 2cm, centered at (5cm, 0) on the YZ plane.\", \"3. Extrude the circle to form a cylinder.\"], \"actions\": [{\"action\": \"create_sketch\", \"params\": {\"plane\": \"YZ\"}}, {\"action\": \"add_circle\", \"params\": {\"sketch_id\": \"sk_0\", \"cx\": 5, \"cy\": 0, \"r\": 2}}, {\"action\": \"extrude_last_profile\", \"params\": {\"distance\": 2, \"operation\": \"NewBody\"}}], \"requires_confirmation\": true}"
+    },
+    {
+      "role": "user",
+      "content": "OK to proceed"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"executing\", \"assistant_message\": \"Executing the creation of the cylinder on the YZ plane.\", \"questions\": [], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    },
+    {
+      "role": "user",
+      "content": "{\"ok\": true, \"details\": \"All actions executed successfully.\"}"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"done\", \"assistant_message\": \"The cylinder with a radius of 2cm has been successfully created on the YZ plane, positioned 5cm to the right of the origin.\", \"questions\": [], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    }
+  ]
+}

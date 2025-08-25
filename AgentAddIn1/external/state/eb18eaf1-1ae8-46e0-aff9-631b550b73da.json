@@ -1,0 +1,21 @@
+{
+  "session_id": "eb18eaf1-1ae8-46e0-aff9-631b550b73da",
+  "history": [
+    {
+      "role": "user",
+      "content": "make a square of side 20mm"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"need_clarification\", \"assistant_message\": \"Please specify the plane for the square.\", \"questions\": [\"On which plane would you like to create the square?\"], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    },
+    {
+      "role": "user",
+      "content": "xy plane"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"ready_to_execute\", \"assistant_message\": \"I will create a 2cm square centered at origin on the XY plane.\", \"questions\": [], \"plan\": [\"1. Create sketch on XY plane\", \"2. Add 2cm square centered at origin\"], \"actions\": [{\"action\": \"create_sketch\", \"params\": {\"plane\": \"XY\"}}, {\"action\": \"add_rectangle\", \"params\": {\"sketch_id\": \"sk_0\", \"x1\": -1, \"y1\": -1, \"x2\": 1, \"y2\": 1}}], \"requires_confirmation\": true}"
+    }
+  ]
+}
