@@ -1,0 +1,37 @@
+{
+  "session_id": "191b6aa0-85a1-4a8c-8e6e-fce4e44d721a",
+  "history": [
+    {
+      "role": "user",
+      "content": "make an L-bracket whuch is just two rectangular cuboids joined perpendicularly along one face. They meet at a right angle (90°) along a shared edge."
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"need_clarification\", \"assistant_message\": \"To create the L-bracket, I need the dimensions of the cuboids and details about their orientation and overlap.\", \"questions\": [\"What are the dimensions of the two rectangular cuboids?\", \"Which plane should the L-bracket be created on?\", \"Do you have specific dimensions for the overlap or shared edge?\"], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    },
+    {
+      "role": "user",
+      "content": "i want them 60mm by 30mm by 10 mm, it shoud sit on the XY plane and the shared edge should be the 30mm one and there should be overlap so there is no overhang"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"ready_to_execute\", \"assistant_message\": \"I will create an L-bracket with two rectangular cuboids, each 6cm x 3cm x 1cm, joined perpendicularly along the 3cm edge on the XY plane.\", \"questions\": [], \"plan\": [\"1. Create a sketch on the XY plane.\", \"2. Add a rectangle for the first cuboid (6cm x 1cm).\", \"3. Extrude the first rectangle to 3cm height.\", \"4. Add a rectangle for the second cuboid (3cm x 1cm) perpendicular to the first.\", \"5. Extrude the second rectangle to 6cm height, joining it with the first cuboid.\"], \"actions\": [{\"action\": \"create_sketch\", \"params\": {\"plane\": \"XY\"}}, {\"action\": \"add_rectangle\", \"params\": {\"sketch_id\": \"sk_0\", \"x1\": 0, \"y1\": 0, \"x2\": 6, \"y2\": 1}}, {\"action\": \"extrude_last_profile\", \"params\": {\"distance\": 3, \"operation\": \"NewBody\"}}, {\"action\": \"create_sketch\", \"params\": {\"plane\": \"XY\"}}, {\"action\": \"add_rectangle\", \"params\": {\"sketch_id\": \"sk_1\", \"x1\": 0, \"y1\": 0, \"x2\": 3, \"y2\": 1}}, {\"action\": \"extrude_last_profile\", \"params\": {\"distance\": 6, \"operation\": \"Join\"}}], \"requires_confirmation\": true}"
+    },
+    {
+      "role": "user",
+      "content": "OK to proceed"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"executing\", \"assistant_message\": \"Executing the creation of the L-bracket with the specified dimensions and orientation.\", \"questions\": [], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    },
+    {
+      "role": "user",
+      "content": "{\"ok\": true, \"details\": \"All actions executed successfully.\"}"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"done\", \"assistant_message\": \"The L-bracket has been successfully created with the specified dimensions and orientation on the XY plane.\", \"questions\": [], \"plan\": [], \"actions\": [], \"requires_confirmation\": false}"
+    }
+  ]
+}
